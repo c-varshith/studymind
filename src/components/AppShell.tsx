@@ -1,0 +1,138 @@
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Brain, FileText, MessageSquare, Sparkles, Layers, LogOut, Menu, Moon, Sun, UserCircle2, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
+
+const nav = [
+  { to: "/app", label: "Notes", icon: FileText, end: true },
+  { to: "/app/chat", label: "AI Tutor", icon: MessageSquare },
+  { to: "/app/quiz", label: "Quizzes", icon: Sparkles },
+  { to: "/app/flashcards", label: "Flashcards", icon: Layers },
+];
+
+export default function AppShell() {
+  const { signOut } = useAuth();
+  const nav2 = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleSignOut = async () => {
+    await signOut();
+    nav2("/auth");
+  };
+
+  const toggleTheme = () => {
+    if (!mounted) return;
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex">
+      {/* Sidebar */}
+      <aside
+        className={cn(
+          "fixed md:static inset-y-0 left-0 z-40 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform",
+          open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+        )}
+      >
+        <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
+          <div className="h-9 w-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-soft">
+            <Brain className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="font-display font-bold text-lg text-sidebar-foreground">StudyMind</span>
+        </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {nav.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-gradient-primary text-primary-foreground shadow-soft"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent",
+                )
+              }
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="p-3 border-t border-sidebar-border">
+          <NavLink
+            to="/app/dashboard"
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "mb-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-gradient-primary text-primary-foreground shadow-soft"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent",
+              )
+            }
+          >
+            <LayoutDashboard className="h-4 w-4" />
+            Dashboard
+          </NavLink>
+          <NavLink
+            to="/app/profile"
+            onClick={() => setOpen(false)}
+            className={({ isActive }) =>
+              cn(
+                "mb-1 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                isActive
+                  ? "bg-gradient-primary text-primary-foreground shadow-soft"
+                  : "text-sidebar-foreground hover:bg-sidebar-accent",
+              )
+            }
+          >
+            <UserCircle2 className="h-4 w-4" />
+            Profile
+          </NavLink>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* Mobile overlay */}
+      {open && <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setOpen(false)} />}
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="hidden md:flex border-b border-border p-3 items-center justify-end">
+          <Button variant="ghost" size="icon" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
+            {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+        </header>
+        <header className="md:hidden border-b border-border p-3 flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></Button>
+          <span className="font-display font-semibold">StudyMind</span>
+          <Button variant="ghost" size="icon" className="ml-auto" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
+            {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+        </header>
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+}

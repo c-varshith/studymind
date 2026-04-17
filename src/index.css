@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* StudyMind design system — calm focus, warm violet + emerald accents */
+
+@layer base {
+  :root {
+    --background: 250 40% 98%;
+    --foreground: 240 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 240 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 25% 12%;
+
+    --primary: 256 70% 58%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 270 90% 75%;
+
+    --secondary: 250 30% 95%;
+    --secondary-foreground: 240 25% 18%;
+
+    --muted: 250 30% 95%;
+    --muted-foreground: 240 10% 45%;
+
+    --accent: 158 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 80% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 250 25% 90%;
+    --input: 250 25% 90%;
+    --ring: 256 70% 58%;
+
+    --radius: 0.85rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(256 70% 58%), hsl(270 90% 70%));
+    --gradient-accent: linear-gradient(135deg, hsl(158 70% 45%), hsl(180 70% 50%));
+    --gradient-hero: radial-gradient(ellipse at top, hsl(270 90% 75% / 0.25), transparent 60%), linear-gradient(180deg, hsl(250 40% 98%), hsl(250 40% 96%));
+    --shadow-soft: 0 4px 14px -4px hsl(256 70% 58% / 0.15);
+    --shadow-elegant: 0 20px 50px -20px hsl(256 70% 58% / 0.3);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 15% 25%;
+    --sidebar-primary: 256 70% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 250 30% 95%;
+    --sidebar-accent-foreground: 240 25% 18%;
+    --sidebar-border: 250 25% 90%;
+    --sidebar-ring: 256 70% 58%;
+  }
+
+  .dark {
+    --background: 240 25% 8%;
+    --foreground: 250 30% 96%;
+    --card: 240 22% 11%;
+    --card-foreground: 250 30% 96%;
+    --popover: 240 22% 11%;
+    --popover-foreground: 250 30% 96%;
+    --primary: 270 90% 72%;
+    --primary-foreground: 240 25% 10%;
+    --primary-glow: 280 95% 78%;
+    --secondary: 240 18% 16%;
+    --secondary-foreground: 250 30% 96%;
+    --muted: 240 18% 16%;
+    --muted-foreground: 240 10% 65%;
+    --accent: 158 70% 55%;
+    --accent-foreground: 240 25% 10%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 18% 20%;
+    --input: 240 18% 20%;
+    --ring: 270 90% 72%;
+    --gradient-primary: linear-gradient(135deg, hsl(270 90% 65%), hsl(290 90% 70%));
+    --gradient-hero: radial-gradient(ellipse at top, hsl(270 90% 60% / 0.25), transparent 60%), linear-gradient(180deg, hsl(240 25% 8%), hsl(240 25% 6%));
+    --shadow-soft: 0 4px 14px -4px hsl(270 90% 50% / 0.3);
+    --shadow-elegant: 0 20px 50px -20px hsl(270 90% 50% / 0.5);
+    --sidebar-background: 240 22% 10%;
+    --sidebar-foreground: 250 30% 90%;
+    --sidebar-primary: 270 90% 72%;
+    --sidebar-primary-foreground: 240 25% 10%;
+    --sidebar-accent: 240 18% 16%;
+    --sidebar-accent-foreground: 250 30% 96%;
+    --sidebar-border: 240 18% 20%;
+    --sidebar-ring: 270 90% 72%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; font-feature-settings: "ss01","cv11"; }
+  html { scroll-behavior: smooth; }
+}
+
+@layer utilities {
+  .bg-gradient-primary { background-image: var(--gradient-primary); }
+  .bg-gradient-accent { background-image: var(--gradient-accent); }
+  .bg-gradient-hero { background-image: var(--gradient-hero); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .text-gradient { background-image: var(--gradient-primary); -webkit-background-clip: text; background-clip: text; color: transparent; }
+}
+
+/* Markdown prose */
+.prose-chat p { @apply my-2 leading-relaxed; }
+.prose-chat ul { @apply my-2 ml-5 list-disc space-y-1; }
+.prose-chat ol { @apply my-2 ml-5 list-decimal space-y-1; }
+.prose-chat code { @apply rounded bg-muted px-1.5 py-0.5 text-sm font-mono; }
+.prose-chat pre { @apply my-3 overflow-x-auto rounded-lg bg-muted p-3 text-sm; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3 { @apply mt-4 mb-2 font-semibold; }
+.prose-chat strong { @apply font-semibold text-foreground; }
+
+/* Flip card */
+.perspective { perspective: 1200px; }
+.preserve-3d { transform-style: preserve-3d; }
+.backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.rotate-y-180 { transform: rotateY(180deg); }
