@@ -62,7 +62,7 @@ The backend on Render can't reach `localhost` directly, so ngrok gives it a publ
 
 > **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile → AI Endpoint** when it changes.
 
-Once both are running, head to the site, create an account, upload a PDF, and start chatting.
+Once both are running, head to the site, upload a PDF, and start chatting.
 
 ---
 
