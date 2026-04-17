@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Response
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import fitz  # PyMuPDF
@@ -7,6 +7,7 @@ import os
 import json
 import re
 import tempfile
+from urllib.parse import urlparse
 from pathlib import Path
 import shutil
 from functools import lru_cache
@@ -37,6 +38,15 @@ TTS_VOICE         = os.getenv("TTS_VOICE", "en-us")
 TTS_DEFAULT_SPEED  = float(os.getenv("TTS_DEFAULT_SPEED", "1.0"))
 CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "400"))   # words per chunk
 CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "50")) # word overlap between chunks
+
+
+def parse_csv_env(name: str) -> set[str]:
+    raw = os.getenv(name, "")
+    return {item.strip().lower() for item in raw.split(",") if item.strip()}
+
+
+OLLAMA_ALLOWED_HOSTS = parse_csv_env("OLLAMA_ALLOWED_HOSTS")
+OLLAMA_ALLOWED_SUFFIXES = parse_csv_env("OLLAMA_ALLOWED_SUFFIXES")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in backend/.env")
@@ -109,18 +119,76 @@ def parse_json_block(text: str) -> dict:
     return parsed
 
 
-async def get_embedding(text: str) -> list[float]:
+def normalize_ollama_url(url: str) -> str:
+    normalized = (url or "").strip().rstrip("/")
+    if not normalized:
+        raise ValueError("Ollama URL cannot be empty")
+
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("Ollama URL must be a valid http(s) URL")
+
+    return normalized
+
+
+def is_allowed_ollama_host(hostname: str) -> bool:
+    host = (hostname or "").strip().lower()
+    if not host:
+        return False
+
+    if not OLLAMA_ALLOWED_HOSTS and not OLLAMA_ALLOWED_SUFFIXES:
+        return True
+
+    if host in OLLAMA_ALLOWED_HOSTS:
+        return True
+
+    return any(host == suffix or host.endswith(f".{suffix}") for suffix in OLLAMA_ALLOWED_SUFFIXES)
+
+
+def validate_ollama_endpoint(url: str) -> str:
+    normalized = normalize_ollama_url(url)
+    parsed = urlparse(normalized)
+    hostname = (parsed.hostname or "").strip().lower()
+
+    if not is_allowed_ollama_host(hostname):
+        raise ValueError(
+            "Host is not in allowlist. Configure OLLAMA_ALLOWED_HOSTS or OLLAMA_ALLOWED_SUFFIXES."
+        )
+
+    # Force HTTPS for non-localhost endpoints to avoid sending prompts to cleartext endpoints.
+    if hostname not in {"localhost", "127.0.0.1", "::1"} and parsed.scheme != "https":
+        raise ValueError("Non-local Ollama endpoints must use https")
+
+    return normalized
+
+
+def resolve_ollama_url(request: Request) -> str:
+    # Allow users to supply a per-request endpoint so each user can target
+    # their own local Ollama tunnel without changing global Render env vars.
+    header_url = request.headers.get("x-ollama-url")
+    if not header_url:
+        try:
+            return validate_ollama_endpoint(OLLAMA_URL)
+        except ValueError as exc:
+            raise HTTPException(500, f"Invalid backend OLLAMA_URL configuration: {exc}") from exc
+    try:
+        return validate_ollama_endpoint(header_url)
+    except ValueError as exc:
+        raise HTTPException(400, f"Invalid x-ollama-url header: {exc}") from exc
+
+
+async def get_embedding(text: str, ollama_url: str) -> list[float]:
     """Call Ollama embeddings API."""
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                f"{OLLAMA_URL}/api/embeddings",
+                f"{ollama_url}/api/embeddings",
                 json={"model": EMBED_MODEL, "prompt": text},
             )
             r.raise_for_status()
             return r.json()["embedding"]
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Ollama embeddings failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
@@ -177,7 +245,9 @@ def health():
         "status": "ok",
         "embed_model": EMBED_MODEL,
         "chat_model": CHAT_MODEL,
-        "ollama_url": OLLAMA_URL,
+        "default_ollama_url": OLLAMA_URL,
+        "ollama_allowed_hosts": sorted(OLLAMA_ALLOWED_HOSTS),
+        "ollama_allowed_suffixes": sorted(OLLAMA_ALLOWED_SUFFIXES),
         "tts_engine": TTS_ENGINE,
         "tts_binary": espeak_bin,
         "tts_voice": TTS_VOICE,
@@ -187,6 +257,7 @@ def health():
 
 @app.post("/upload")
 async def upload_pdf(
+    request: Request,
     file: UploadFile = File(...),
     user_id: str = Query(...),
     note_id: str = Query(...),
@@ -216,6 +287,7 @@ async def upload_pdf(
         raise HTTPException(400, "No extractable text found in this PDF (it may be scanned/image-based)")
 
     chunks = chunk_text(full_text)
+    ollama_url = resolve_ollama_url(request)
 
     # Delete any existing chunks for this note (re-upload scenario)
     try:
@@ -226,7 +298,7 @@ async def upload_pdf(
     # Embed + store chunks
     rows = []
     for i, chunk in enumerate(chunks):
-        embedding = await get_embedding(chunk)
+        embedding = await get_embedding(chunk, ollama_url)
         rows.append({
             "note_id":     note_id,
             "user_id":     user_id,
@@ -283,7 +355,7 @@ class TTSRequest(BaseModel):
 
 
 @app.post("/query")
-async def query_rag(req: QueryRequest):
+async def query_rag(req: QueryRequest, request: Request):
     """
     1. Embed the question
     2. Similarity-search document_chunks via pgvector RPC
@@ -292,11 +364,12 @@ async def query_rag(req: QueryRequest):
     Returns the answer + source chunks.
     """
     model = req.model or CHAT_MODEL
+    ollama_url = resolve_ollama_url(request)
 
     sources = []
 
     if req.note_id:
-        q_embedding = await get_embedding(req.question)
+        q_embedding = await get_embedding(req.question, ollama_url)
 
         # Vector search
         try:
@@ -332,13 +405,13 @@ Answer:"""
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(
-                f"{OLLAMA_URL}/api/generate",
+                f"{ollama_url}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
             answer = r.json()["response"]
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Ollama generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
@@ -346,13 +419,14 @@ Answer:"""
 
 
 @app.post("/quiz-generate")
-async def generate_quiz(req: QuizRequest):
+async def generate_quiz(req: QuizRequest, request: Request):
     content = (req.content or "").strip()
     if not content:
         raise HTTPException(400, "content required")
 
     count = max(1, min(20, int(req.count)))
     model = req.model or QUIZ_MODEL
+    ollama_url = resolve_ollama_url(request)
 
     prompt = f"""Generate {count} multiple-choice quiz questions from the study material below.
 Return ONLY valid JSON in this exact shape:
@@ -380,13 +454,13 @@ Study material:
     try:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
-                f"{OLLAMA_URL}/api/generate",
+                f"{ollama_url}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
             raw = r.json().get("response", "")
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Ollama quiz generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
@@ -434,13 +508,14 @@ Study material:
 
 
 @app.post("/flashcards-generate")
-async def generate_flashcards(req: FlashcardsRequest):
+async def generate_flashcards(req: FlashcardsRequest, request: Request):
     content = (req.content or "").strip()
     if not content:
         raise HTTPException(400, "content required")
 
     count = max(1, min(50, int(req.count)))
     model = req.model or FLASHCARD_MODEL
+    ollama_url = resolve_ollama_url(request)
 
     prompt = f"""Generate {count} high-quality study flashcards from the material below.
 Return ONLY valid JSON in this exact shape:
@@ -466,13 +541,13 @@ Study material:
     try:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
-                f"{OLLAMA_URL}/api/generate",
+                f"{ollama_url}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
             raw = r.json().get("response", "")
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Ollama flashcard generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
@@ -502,7 +577,7 @@ Study material:
 
 
 @app.post("/summarize-note")
-async def summarize_note(req: SummaryRequest):
+async def summarize_note(req: SummaryRequest, request: Request):
     content = (req.content or "").strip()
     if not content:
         raise HTTPException(400, "content required")
@@ -510,6 +585,7 @@ async def summarize_note(req: SummaryRequest):
     max_points = max(3, min(15, int(req.max_points)))
     model = req.model or CHAT_MODEL
     mode = (req.mode or "standard").strip().lower()
+    ollama_url = resolve_ollama_url(request)
 
     if mode == "eli5":
         prompt = f"""You are helping a student understand a topic like they are 10 years old.
@@ -539,13 +615,13 @@ Study material:
         try:
             async with httpx.AsyncClient(timeout=180) as client:
                 r = await client.post(
-                    f"{OLLAMA_URL}/api/generate",
+                    f"{ollama_url}/api/generate",
                     json={"model": model, "prompt": prompt, "stream": False},
                 )
                 r.raise_for_status()
                 raw = str(r.json().get("response", "")).strip()
         except httpx.RequestError as e:
-            raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+            raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
         except httpx.HTTPStatusError as e:
             raise HTTPException(502, f"Ollama summarization failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
@@ -619,13 +695,13 @@ Study material:
     try:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
-                f"{OLLAMA_URL}/api/generate",
+                f"{ollama_url}/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
             summary = str(r.json().get("response", "")).strip()
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {OLLAMA_URL}: {e}") from e
+        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise HTTPException(502, f"Ollama summarization failed ({e.response.status_code}): {e.response.text[:300]}") from e
 

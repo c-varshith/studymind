@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Shield, UserCircle2 } from "lucide-react";
+import { getStoredOllamaUrl, setStoredOllamaUrl } from "@/lib/ollama";
 
 interface ProfileRow {
   id: string;
@@ -21,10 +22,12 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [savingOllama, setSavingOllama] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [ollamaUrl, setOllamaUrl] = useState("");
 
   const createdAtText = useMemo(() => {
     if (!user?.created_at) return "-";
@@ -32,6 +35,8 @@ export default function Profile() {
   }, [user?.created_at]);
 
   useEffect(() => {
+    setOllamaUrl(getStoredOllamaUrl());
+
     const loadProfile = async () => {
       if (!user) {
         setProfileLoading(false);
@@ -117,6 +122,24 @@ export default function Profile() {
     }
   };
 
+  const saveOllamaUrl = async () => {
+    setSavingOllama(true);
+    try {
+      const saved = setStoredOllamaUrl(ollamaUrl);
+      setOllamaUrl(saved);
+      toast({
+        title: "AI endpoint saved",
+        description: saved
+          ? "AI features will now use your configured Ollama URL."
+          : "Custom Ollama URL cleared. App will use backend default.",
+      });
+    } catch (e: any) {
+      toast({ title: "Invalid URL", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingOllama(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="p-6 max-w-4xl mx-auto">
@@ -199,6 +222,32 @@ export default function Profile() {
         <Button onClick={changePassword} disabled={changingPassword} variant="secondary">
           {changingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Shield className="h-4 w-4 mr-2" />}
           Change password
+        </Button>
+      </Card>
+
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-lg font-semibold">AI Endpoint</h2>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="ollamaUrl">Ollama URL (optional)</Label>
+          <Input
+            id="ollamaUrl"
+            value={ollamaUrl}
+            onChange={(e) => setOllamaUrl(e.target.value)}
+            placeholder="https://your-tunnel.ngrok-free.dev"
+            disabled={savingOllama}
+          />
+          <p className="text-xs text-muted-foreground">
+            Set this to your own ngrok or Cloudflare tunnel URL that points to local Ollama port 11434.
+            Leave empty to use the backend default URL.
+          </p>
+        </div>
+
+        <Button onClick={saveOllamaUrl} disabled={savingOllama} variant="secondary">
+          {savingOllama ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+          Save AI endpoint
         </Button>
       </Card>
     </div>

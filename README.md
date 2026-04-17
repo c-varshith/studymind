@@ -58,9 +58,9 @@ The backend on Render can't reach `localhost` directly, so ngrok gives it a publ
    ngrok http 11434 --host-header="localhost:11434"
    ```
 3. Copy the `https://xxxx-xxxx.ngrok-free.dev` URL from the terminal output.
-4. Open [studymind.vercel.app](https://studymind.vercel.app), go to **Settings → Ollama URL**, and paste the ngrok URL.
+4. Open https://studymind-rho.vercel.app, go to **Profile → AI Endpoint**, and paste the ngrok URL.
 
-> **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. You'll need to update the URL in Settings each time.
+> **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile → AI Endpoint** when it changes.
 
 Once both are running, head to the site, create an account, upload a PDF, and start chatting.
 
@@ -246,8 +246,12 @@ Frontend at: `http://localhost:5173`
    ```
    SUPABASE_URL=https://your-project.supabase.co
    SUPABASE_KEY=your-service-role-key
-   OLLAMA_URL=https://your-ngrok-url.ngrok-free.dev
+   OLLAMA_URL=https://optional-default-ollama-url
+   OLLAMA_ALLOWED_SUFFIXES=ngrok-free.dev,ngrok.app,trycloudflare.com
+   OLLAMA_ALLOWED_HOSTS=your-static-tunnel.example.com
    ```
+
+`OLLAMA_URL` is now only a **default fallback**. Users can provide their own Ollama tunnel URL from the app UI, and the backend will use that per request.
 
 ### Exposing Ollama via ngrok
 
@@ -259,9 +263,9 @@ ollama serve
 ngrok http 11434 --host-header="localhost:11434"
 ```
 
-Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it as `OLLAMA_URL` in your Render environment variables.
+Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it in **Profile → AI Endpoint** inside the app.
 
-> ⚠️ Free ngrok URLs change on every restart. Update `OLLAMA_URL` on Render each time, or use a paid ngrok plan for a static domain.
+> ⚠️ Free ngrok URLs change on every restart. Update the URL in **Profile → AI Endpoint** each time, or use a paid ngrok plan for a static domain.
 
 ---
 
@@ -289,7 +293,12 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 |----------|-------------|
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_KEY` | Supabase **service role** key (not the anon key) |
-| `OLLAMA_URL` | ngrok public URL in production; `http://localhost:11434` locally |
+| `OLLAMA_URL` | Optional default fallback Ollama URL. Per-user URL can be set in Profile → AI Endpoint. |
+| `OLLAMA_ALLOWED_SUFFIXES` | Optional comma-separated domain suffix allowlist for `x-ollama-url` (e.g., `ngrok-free.dev,trycloudflare.com`). |
+| `OLLAMA_ALLOWED_HOSTS` | Optional comma-separated exact host allowlist for `x-ollama-url` (e.g., `abc-123.ngrok-free.dev,my-tunnel.example.com`). |
+
+When either allowlist variable is set, any user-provided AI endpoint host outside the allowlist is rejected.
+For non-local hosts, the backend also requires `https`.
 
 ### Frontend (Vercel / local)
 
@@ -304,7 +313,7 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 ## ⚠️ Known Limitations
 
 - **Ollama must be running locally** for all AI features to work. If your machine is off or ngrok has stopped, chat, quiz generation, flashcards, summaries, and embeddings will all fail.
-- **Free ngrok URLs are ephemeral** — the URL changes on every restart, requiring a manual update of `OLLAMA_URL` on Render (or in the app's Settings page on the production site).
+- **Free ngrok URLs are ephemeral** — the URL changes on every restart, so each user must refresh their value in Profile → AI Endpoint unless they use a static tunnel domain.
 - **Render cold starts** — the free tier spins down after inactivity; the first request may take ~30 seconds to respond.
 
 ---

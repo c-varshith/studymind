@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { getOllamaHeaders } from "@/lib/ollama";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -43,7 +44,7 @@ export async function streamChat({
 
     const resp = await fetch(`${RAG_BACKEND}/query`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
       body: JSON.stringify({
         question: prompt,
         note_id: noteId ?? "",
@@ -72,7 +73,7 @@ export async function streamChat({
 export async function ttsToBlob(text: string, voice = "default", signal?: AbortSignal, speed = 1): Promise<Blob> {
   const resp = await fetch(`${RAG_BACKEND}/tts-generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
     body: JSON.stringify({ text, voice, speed }),
     signal,
   });
@@ -112,7 +113,7 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
 export async function generateQuiz(content: string, count = 5) {
   const resp = await fetch(`${RAG_BACKEND}/quiz-generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
     body: JSON.stringify({ content, count }),
   });
   if (!resp.ok) {
@@ -128,7 +129,7 @@ export async function generateQuiz(content: string, count = 5) {
 export async function generateFlashcards(content: string, count = 10) {
   const resp = await fetch(`${RAG_BACKEND}/flashcards-generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
     body: JSON.stringify({ content, count }),
   });
   if (!resp.ok) {
@@ -141,7 +142,7 @@ export async function generateFlashcards(content: string, count = 10) {
 export async function summarizeNote(content: string, maxPoints = 8, mode: "standard" | "eli5" = "standard") {
   const resp = await fetch(`${RAG_BACKEND}/summarize-note`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
     body: JSON.stringify({ content, max_points: maxPoints, mode }),
   });
   if (!resp.ok) {

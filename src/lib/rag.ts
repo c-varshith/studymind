@@ -1,3 +1,5 @@
+import { getOllamaHeaders } from "@/lib/ollama";
+
 const BACKEND = import.meta.env.DEV
   ? "/api/rag"
   : (import.meta.env.VITE_RAG_BACKEND_URL ?? "http://127.0.0.1:8000");
@@ -14,7 +16,7 @@ export async function uploadPdf(
 
   const res = await fetch(
     `${BACKEND}/upload?user_id=${encodeURIComponent(userId)}&note_id=${encodeURIComponent(noteId)}`,
-    { method: "POST", body: form },
+    { method: "POST", body: form, headers: getOllamaHeaders() },
   );
 
   if (!res.ok) {
@@ -33,7 +35,7 @@ export async function queryRag(
 ): Promise<{ answer: string; sources: string[] }> {
   const res = await fetch(`${BACKEND}/query`, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
     body:    JSON.stringify({ question, note_id: noteId, user_id: userId, model: model ?? "" }),
   });
 
@@ -47,7 +49,10 @@ export async function queryRag(
 
 export async function checkBackend(): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND}/health`, { signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${BACKEND}/health`, {
+      signal: AbortSignal.timeout(3000),
+      headers: getOllamaHeaders(),
+    });
     return res.ok;
   } catch {
     return false;
