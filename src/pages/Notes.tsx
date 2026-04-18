@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { summarizeNote, ttsToBlob } from "@/lib/api";
@@ -644,59 +645,77 @@ export default function Notes() {
               </div>
             )}
 
-            {/* RAG panel */}
-            {ragOpen && hasChunks && (
-              <div className="border-b border-border p-4 bg-secondary/30 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={ragQuestion}
-                    onChange={(e) => setRagQuestion(e.target.value)}
-                    placeholder="Ask anything about this document…"
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && askRag()}
-                    className="flex-1"
+            {ragOpen && hasChunks ? (
+              <div className="flex-1 min-h-0">
+                <ResizablePanelGroup direction="vertical" className="h-full">
+                  <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0">
+                    <div className="h-full border-b border-border p-4 bg-secondary/30 space-y-3 overflow-auto">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={ragQuestion}
+                          onChange={(e) => setRagQuestion(e.target.value)}
+                          placeholder="Ask anything about this document…"
+                          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && askRag()}
+                          className="flex-1"
+                        />
+                        <Button size="sm" onClick={askRag} disabled={ragLoading || !ragQuestion.trim()}>
+                          {ragLoading
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <Send className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setRagOpen(false); setRagAnswer(""); setRagSources([]); }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {ragAnswer && (
+                        <Card className="p-3 text-sm space-y-2">
+                          <p className="font-medium text-primary">Answer</p>
+                          <p className="leading-relaxed whitespace-pre-wrap">{ragAnswer}</p>
+                          {ragSources.length > 0 && (
+                            <details className="text-xs text-muted-foreground">
+                              <summary className="cursor-pointer hover:text-foreground transition-colors">
+                                {ragSources.length} source chunk{ragSources.length > 1 ? "s" : ""}
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                {ragSources.map((s, i) => (
+                                  <p key={i} className="border-l-2 border-border pl-2 line-clamp-3">{s}</p>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </Card>
+                      )}
+                    </div>
+                  </ResizablePanel>
+
+                  <ResizableHandle
+                    withHandle
+                    className="data-[panel-group-direction=vertical]:h-2 bg-border/70 hover:bg-primary/40 transition-colors"
                   />
-                  <Button size="sm" onClick={askRag} disabled={ragLoading || !ragQuestion.trim()}>
-                    {ragLoading
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Send className="h-4 w-4" />}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => { setRagOpen(false); setRagAnswer(""); setRagSources([]); }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
 
-                {ragAnswer && (
-                  <Card className="p-3 text-sm space-y-2">
-                    <p className="font-medium text-primary">Answer</p>
-                    <p className="leading-relaxed whitespace-pre-wrap">{ragAnswer}</p>
-                    {ragSources.length > 0 && (
-                      <details className="text-xs text-muted-foreground">
-                        <summary className="cursor-pointer hover:text-foreground transition-colors">
-                          {ragSources.length} source chunk{ragSources.length > 1 ? "s" : ""}
-                        </summary>
-                        <div className="mt-2 space-y-2">
-                          {ragSources.map((s, i) => (
-                            <p key={i} className="border-l-2 border-border pl-2 line-clamp-3">{s}</p>
-                          ))}
-                        </div>
-                      </details>
-                    )}
-                  </Card>
-                )}
+                  <ResizablePanel minSize={30} className="min-h-0">
+                    <Textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
               </div>
+            ) : (
+              <Textarea
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                className="flex-1 resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+              />
             )}
-
-            {/* Text editor */}
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
-              className="flex-1 resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
-            />
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-center p-10">

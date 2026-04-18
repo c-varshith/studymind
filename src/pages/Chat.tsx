@@ -14,7 +14,6 @@ type Msg = { role: "user" | "assistant"; content: string };
 interface Note { id: string; title: string; content: string; }
 
 const TTS_PREVIEW_LIMIT = 12000;
-const TTS_SPEED_OPTIONS = [0.8, 1, 1.15, 1.3, 1.5];
 
 function speakBrowserFallback(text: string, onDone: () => void, onError: (message: string) => void) {
   if (typeof window === "undefined" || !window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") {
@@ -49,7 +48,6 @@ export default function Chat() {
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioStatus, setAudioStatus] = useState<string>("");
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const ttsAbortRef = useRef<AbortController | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -69,12 +67,6 @@ export default function Chat() {
     window.speechSynthesis?.cancel();
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
   }, []);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed]);
 
   const send = async () => {
     if (!input.trim() || loading || !user) return;
@@ -131,7 +123,7 @@ export default function Chat() {
       const controller = new AbortController();
       ttsAbortRef.current = controller;
       const input = buildPreviewText(text);
-      const blob = await ttsToBlob(input, "default", controller.signal, playbackSpeed);
+      const blob = await ttsToBlob(input, "default", controller.signal, 1);
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
       
@@ -198,20 +190,6 @@ export default function Chat() {
         </div>
         <div className="ml-auto">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Speed</span>
-              <select
-                value={playbackSpeed}
-                onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
-                className="h-9 rounded-md border border-border bg-background px-2 text-sm"
-              >
-                {TTS_SPEED_OPTIONS.map((speed) => (
-                  <option key={speed} value={speed}>
-                    {speed.toFixed(2)}x
-                  </option>
-                ))}
-              </select>
-            </div>
             <Select value={noteId} onValueChange={setNoteId}>
               <SelectTrigger className="w-[220px]"><SelectValue placeholder="No note context" /></SelectTrigger>
               <SelectContent>
@@ -267,10 +245,10 @@ export default function Chat() {
                         autoPlay
                         className="w-full"
                         onLoadedMetadata={(e) => {
-                          e.currentTarget.playbackRate = playbackSpeed;
+                          e.currentTarget.playbackRate = 1;
                         }}
                         onPlay={(e) => {
-                          e.currentTarget.playbackRate = playbackSpeed;
+                          e.currentTarget.playbackRate = 1;
                           setSpeakingIdx(i);
                           setAudioStatus("Playing audio...");
                         }}

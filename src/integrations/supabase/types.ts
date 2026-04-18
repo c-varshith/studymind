@@ -214,8 +214,10 @@ export type Database = {
       quizzes: {
         Row: {
           created_at: string
+          difficulty: string
           id: string
           note_id: string | null
+          question_count: number
           questions: Json
           title: string
           updated_at: string
@@ -223,8 +225,10 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          difficulty?: string
           id?: string
           note_id?: string | null
+          question_count?: number
           questions?: Json
           title: string
           updated_at?: string
@@ -232,8 +236,10 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          difficulty?: string
           id?: string
           note_id?: string | null
+          question_count?: number
           questions?: Json
           title?: string
           updated_at?: string
@@ -245,6 +251,57 @@ export type Database = {
             columns: ["note_id"]
             isOneToOne: false
             referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_results: {
+        Row: {
+          answers: Json
+          correct_answers: number
+          created_at: string
+          id: string
+          note_id: string | null
+          quiz_id: string
+          score_percent: number
+          total_questions: number
+          user_id: string
+        }
+        Insert: {
+          answers?: Json
+          correct_answers: number
+          created_at?: string
+          id?: string
+          note_id?: string | null
+          quiz_id: string
+          score_percent: number
+          total_questions: number
+          user_id: string
+        }
+        Update: {
+          answers?: Json
+          correct_answers?: number
+          created_at?: string
+          id?: string
+          note_id?: string | null
+          quiz_id?: string
+          score_percent?: number
+          total_questions?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_results_note_id_fkey"
+            columns: ["note_id"]
+            isOneToOne: false
+            referencedRelation: "notes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_results_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
             referencedColumns: ["id"]
           },
         ]

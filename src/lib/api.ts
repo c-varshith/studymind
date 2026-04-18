@@ -110,11 +110,11 @@ export async function transcribeAudio(blob: Blob): Promise<string> {
     : "";
 }
 
-export async function generateQuiz(content: string, count = 5) {
+export async function generateQuiz(content: string, count = 5, difficulty: "easy" | "medium" | "hard" = "medium") {
   const resp = await fetch(`${RAG_BACKEND}/quiz-generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getOllamaHeaders() },
-    body: JSON.stringify({ content, count }),
+    body: JSON.stringify({ content, count, difficulty }),
   });
   if (!resp.ok) {
     const j = await resp.json().catch(() => ({}));

@@ -332,6 +332,7 @@ class QueryRequest(BaseModel):
 class QuizRequest(BaseModel):
     content: str
     count: int = 5
+    difficulty: str = "medium"
     model: str = ""  # optional override; falls back to QUIZ_MODEL
 
 
@@ -425,6 +426,10 @@ async def generate_quiz(req: QuizRequest, request: Request):
         raise HTTPException(400, "content required")
 
     count = max(1, min(20, int(req.count)))
+    difficulty = (req.difficulty or "medium").strip().lower()
+    if difficulty not in {"easy", "medium", "hard"}:
+        difficulty = "medium"
+
     model = req.model or QUIZ_MODEL
     ollama_url = resolve_ollama_url(request)
 
@@ -445,6 +450,10 @@ Return ONLY valid JSON in this exact shape:
 Rules:
 - Exactly 4 options per question.
 - correctIndex must be 0..3.
+- Difficulty must be {difficulty}.
+- Easy: recall and direct understanding.
+- Medium: application and comparison.
+- Hard: multi-step reasoning and edge cases.
 - No markdown, no comments, JSON only.
 
 Study material:

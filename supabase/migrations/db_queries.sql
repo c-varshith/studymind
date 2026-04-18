@@ -157,6 +157,8 @@ CREATE TABLE public.quizzes (
   user_id    UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   note_id    UUID        REFERENCES public.notes(id) ON DELETE SET NULL,
   title      TEXT        NOT NULL,
+  difficulty TEXT        NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard')),
+  question_count INT     NOT NULL DEFAULT 5 CHECK (question_count IN (5, 10, 15)),
   questions  JSONB       NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -179,6 +181,34 @@ CREATE TRIGGER quiz_updated
 -- FIX: indexes on foreign keys
 CREATE INDEX idx_quizzes_user    ON public.quizzes(user_id);
 CREATE INDEX idx_quizzes_note_id ON public.quizzes(note_id);
+
+
+-- -----------------------------------------------------------------------------
+-- quiz_results
+-- -----------------------------------------------------------------------------
+CREATE TABLE public.quiz_results (
+  id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quiz_id          UUID        NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
+  note_id          UUID        REFERENCES public.notes(id) ON DELETE SET NULL,
+  total_questions  INT         NOT NULL CHECK (total_questions > 0),
+  correct_answers  INT         NOT NULL CHECK (correct_answers >= 0),
+  score_percent    NUMERIC(5,2) NOT NULL CHECK (score_percent >= 0 AND score_percent <= 100),
+  answers          JSONB       NOT NULL DEFAULT '{}'::jsonb,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (correct_answers <= total_questions)
+);
+ALTER TABLE public.quiz_results ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "quiz_results_select" ON public.quiz_results
+  FOR SELECT USING ((select auth.uid()) = user_id);
+CREATE POLICY "quiz_results_insert" ON public.quiz_results
+  FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "quiz_results_delete" ON public.quiz_results
+  FOR DELETE USING ((select auth.uid()) = user_id);
+
+CREATE INDEX idx_quiz_results_user ON public.quiz_results(user_id, created_at DESC);
+CREATE INDEX idx_quiz_results_quiz ON public.quiz_results(quiz_id, created_at DESC);
 
 
 -- -----------------------------------------------------------------------------
@@ -355,3 +385,41 @@ CREATE TRIGGER on_auth_user_activity
   FOR EACH ROW
   WHEN (OLD.last_sign_in_at IS DISTINCT FROM NEW.last_sign_in_at)
   EXECUTE FUNCTION public.track_user_activity();
+
+-- Add quiz generation metadata and persisted quiz results
+
+ALTER TABLE public.quizzes
+  ADD COLUMN IF NOT EXISTS difficulty TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy', 'medium', 'hard'));
+
+ALTER TABLE public.quizzes
+  ADD COLUMN IF NOT EXISTS question_count INT NOT NULL DEFAULT 5 CHECK (question_count IN (5, 10, 15));
+
+CREATE TABLE IF NOT EXISTS public.quiz_results (
+  id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          UUID         NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  quiz_id          UUID         NOT NULL REFERENCES public.quizzes(id) ON DELETE CASCADE,
+  note_id          UUID         REFERENCES public.notes(id) ON DELETE SET NULL,
+  total_questions  INT          NOT NULL CHECK (total_questions > 0),
+  correct_answers  INT          NOT NULL CHECK (correct_answers >= 0),
+  score_percent    NUMERIC(5,2) NOT NULL CHECK (score_percent >= 0 AND score_percent <= 100),
+  answers          JSONB        NOT NULL DEFAULT '{}'::jsonb,
+  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  CHECK (correct_answers <= total_questions)
+);
+
+ALTER TABLE public.quiz_results ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "quiz_results_select" ON public.quiz_results;
+CREATE POLICY "quiz_results_select" ON public.quiz_results
+  FOR SELECT USING ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "quiz_results_insert" ON public.quiz_results;
+CREATE POLICY "quiz_results_insert" ON public.quiz_results
+  FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+
+DROP POLICY IF EXISTS "quiz_results_delete" ON public.quiz_results;
+CREATE POLICY "quiz_results_delete" ON public.quiz_results
+  FOR DELETE USING ((select auth.uid()) = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_results_user ON public.quiz_results(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_results_quiz ON public.quiz_results(quiz_id, created_at DESC);
