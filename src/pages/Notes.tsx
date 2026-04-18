@@ -377,6 +377,7 @@ export default function Notes() {
   };
 
   const visibleNotes = useMemo(() => sortNotes(notes, sortMode), [notes, sortMode]);
+  const showRagPanel = ragOpen && hasChunks;
 
   return (
     <div className="h-full flex">
@@ -568,7 +569,7 @@ export default function Notes() {
               )}
             </div>
 
-            {summaryText && (
+            {summaryText && showRagPanel && (
               <div className="border-b border-border p-4 bg-secondary/20 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
@@ -645,7 +646,102 @@ export default function Notes() {
               </div>
             )}
 
-            {ragOpen && hasChunks ? (
+            {summaryText && !showRagPanel ? (
+              <div className="flex-1 min-h-0">
+                <ResizablePanelGroup direction="vertical" className="h-full">
+                  <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0">
+                    <div className="h-full border-b border-border p-4 bg-secondary/20 space-y-3 overflow-auto">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setSummaryText("");
+                              setSummaryAnalogy("");
+                              setSummaryBullets([]);
+                              setSummaryKeyTerms([]);
+                              setSummaryVisualFlow([]);
+                            }}
+                          >
+                            Dismiss
+                          </Button>
+                        </div>
+                      </div>
+                      <Card className="p-3 text-sm whitespace-pre-wrap leading-relaxed">
+                        {summaryText}
+                      </Card>
+
+                      {summaryMode === "eli5" && summaryAnalogy && (
+                        <Card className="p-3 text-sm">
+                          <p className="font-medium text-primary mb-1">Simple analogy</p>
+                          <p className="text-muted-foreground">{summaryAnalogy}</p>
+                        </Card>
+                      )}
+
+                      {summaryMode === "eli5" && summaryBullets.length > 0 && (
+                        <Card className="p-3 text-sm">
+                          <p className="font-medium text-primary mb-2">Key ideas</p>
+                          <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                            {summaryBullets.map((point, i) => (
+                              <li key={`${point}-${i}`}>{point}</li>
+                            ))}
+                          </ul>
+                        </Card>
+                      )}
+
+                      {summaryMode === "eli5" && summaryVisualFlow.length > 0 && (
+                        <Card className="p-3 text-sm">
+                          <p className="font-medium text-primary mb-3">Visual concept flow</p>
+                          <div className="overflow-x-auto">
+                            <div className="flex items-stretch gap-2 min-w-max">
+                              {summaryVisualFlow.map((step, i) => (
+                                <div key={`${step.label}-${i}`} className="flex items-center gap-2">
+                                  <div className="w-56 rounded-lg border border-border bg-background/70 p-3">
+                                    <p className="font-medium text-foreground">{step.label}</p>
+                                    {step.note && <p className="text-xs text-muted-foreground mt-1">{step.note}</p>}
+                                  </div>
+                                  {i < summaryVisualFlow.length - 1 && <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </Card>
+                      )}
+
+                      {summaryMode === "eli5" && summaryKeyTerms.length > 0 && (
+                        <Card className="p-3 text-sm">
+                          <p className="font-medium text-primary mb-2">Key terms</p>
+                          <div className="flex flex-wrap gap-2">
+                            {summaryKeyTerms.map((term, i) => (
+                              <span key={`${term}-${i}`} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">
+                                {term}
+                              </span>
+                            ))}
+                          </div>
+                        </Card>
+                      )}
+                    </div>
+                  </ResizablePanel>
+
+                  <ResizableHandle
+                    withHandle
+                    className="data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors"
+                  />
+
+                  <ResizablePanel minSize={30} className="min-h-0">
+                    <Textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+                    />
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              </div>
+            ) : showRagPanel ? (
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0">
@@ -695,7 +791,7 @@ export default function Notes() {
 
                   <ResizableHandle
                     withHandle
-                    className="data-[panel-group-direction=vertical]:h-2 bg-border/70 hover:bg-primary/40 transition-colors"
+                    className="data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors"
                   />
 
                   <ResizablePanel minSize={30} className="min-h-0">
