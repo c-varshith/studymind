@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { generateFlashcards } from "@/lib/api";
+import { trackActivity } from "@/lib/activity";
 import { Sparkles, Loader2, ChevronLeft, ChevronRight, RotateCw, Trash2, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +46,7 @@ export default function Flashcards() {
   };
 
   const create = async () => {
-    if (!noteId || !user) return;
+    if (!noteId || !user?.id) return;
     const note = notes.find((n) => n.id === noteId);
     if (!note?.content?.trim()) return toast({ title: "Note is empty", variant: "destructive" });
     setGenerating(true);
@@ -58,6 +59,7 @@ export default function Flashcards() {
       const rows = result.cards.map((c, i) => ({ deck_id: (deck as Deck).id, user_id: user.id, front: c.front, back: c.back, position: i }));
       const { error: cardsError } = await supabase.from("flashcards").insert(rows);
       if (cardsError) throw cardsError;
+      await trackActivity(user.id);
       await loadDecks();
       await openDeck(deck as Deck);
       toast({ title: "Deck ready!", description: `${result.cards.length} cards generated.` });

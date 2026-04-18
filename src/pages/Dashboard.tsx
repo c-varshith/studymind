@@ -69,9 +69,10 @@ function toDayKey(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function computeStreak(activityDaySet: Set<string>) {
-  if (activityDaySet.size === 0) return 0;
+function computeStreak(activityDays: Date[]) {
+  if (activityDays.length === 0) return 0;
 
+  const activityDaySet = new Set(activityDays.map((d) => toDayKey(d)));
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
@@ -110,7 +111,7 @@ export default function Dashboard() {
         setStats(cachedStats);
       }
 
-      const [notesRes, quizzesRes, decksRes, cardsRes, chunksRes] = await Promise.all([
+      const [notesRes, quizzesRes, decksRes, cardsRes, chunksRes, activityRes] = await Promise.all([
         supabase
           .from("notes")
           .select("id,title,updated_at")
@@ -132,6 +133,11 @@ export default function Dashboard() {
           .from("document_chunks" as never)
           .select("note_id")
           .eq("user_id", user.id),
+        supabase
+          .from("user_activity")
+          .select("activity_day")
+          .eq("user_id", user.id)
+          .order("activity_day", { ascending: false }),
       ]);
 
       const notes = (notesRes.data ?? []) as NoteLite[];
@@ -139,11 +145,10 @@ export default function Dashboard() {
       const decks = decksRes.data ?? [];
       const cards = cardsRes.data ?? [];
       const chunks = (chunksRes.data ?? []) as Array<{ note_id: string }>;
+      const activity = (activityRes.data ?? []) as Array<{ activity_day: string }>;
 
-      const activityDays = new Set<string>();
-      for (const n of notes) activityDays.add(String(n.updated_at).slice(0, 10));
-      for (const q of quizzes) activityDays.add(String(q.updated_at).slice(0, 10));
-      for (const d of decks) activityDays.add(String(d.updated_at).slice(0, 10));
+      // Use activity table for streak and weekly activity
+      const activityDays = activity.map((a) => new Date(a.activity_day));
 
       const uploadedIds = new Set(chunks.map((r) => r.note_id).filter(Boolean));
       const uploadedDocTitles = notes
@@ -153,7 +158,7 @@ export default function Dashboard() {
 
       const weeklyCutoff = new Date();
       weeklyCutoff.setDate(weeklyCutoff.getDate() - 6);
-      const weeklyActiveDays = Array.from(activityDays).filter((day) => new Date(day) >= weeklyCutoff).length;
+      const weeklyActiveDays = activityDays.filter((day) => day >= weeklyCutoff).length;
 
       const notesProgress = Math.min(notes.length / 10, 1);
       const quizzesProgress = Math.min(quizzes.length / 5, 1);

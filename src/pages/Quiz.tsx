@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { generateQuiz } from "@/lib/api";
+import { trackActivity } from "@/lib/activity";
 import { Sparkles, Loader2, Check, X, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,7 @@ export default function Quiz() {
   };
 
   const create = async () => {
-    if (!noteId || !user) return;
+    if (!noteId || !user?.id) return;
     const note = notes.find((n) => n.id === noteId);
     if (!note?.content?.trim()) return toast({ title: "Note is empty", description: "Add some content first.", variant: "destructive" });
     setGenerating(true);
@@ -46,6 +47,7 @@ export default function Quiz() {
         user_id: user.id, note_id: noteId, title: `${note.title} — Quiz`, questions: result.questions,
       }).select().single();
       if (error) throw error;
+      await trackActivity(user.id);
       await loadQuizzes();
       open(data as unknown as Quiz);
       toast({ title: "Quiz ready!", description: `${result.questions.length} questions generated.` });

@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { summarizeNote, ttsToBlob } from "@/lib/api";
 import { uploadPdf, queryRag } from "@/lib/rag";
+import { trackActivity } from "@/lib/activity";
 import {
   Plus, Trash2, Volume2, Loader2,
   FileText, Upload, Send, BookOpen, X, ArrowRight,
@@ -156,13 +157,17 @@ export default function Notes() {
   };
 
   const newNote = async () => {
-    if (!user) return;
+    if (!user?.id) {
+      toast({ title: "Error", description: "User not authenticated. Please log in.", variant: "destructive" });
+      return;
+    }
     const { data, error } = await supabase
       .from("notes")
       .insert({ user_id: user.id, title: "Untitled note", content: "" })
       .select()
       .single();
     if (error) return toast({ title: "Error", description: error.message, variant: "destructive" });
+    await trackActivity(user.id);
     await load();
     selectNote(data as Note);
   };
@@ -175,7 +180,7 @@ export default function Notes() {
 
   // autosave
   useEffect(() => {
-    if (!activeId) return;
+    if (!activeId || !user?.id) return;
     window.clearTimeout(debounce.current);
     debounce.current = window.setTimeout(async () => {
       setSaving(true);
@@ -183,6 +188,7 @@ export default function Notes() {
         .from("notes")
         .update({ title: title || "Untitled note", content })
         .eq("id", activeId);
+      await trackActivity(user.id);
       setSaving(false);
       setNotes((prev) =>
         prev.map((n) => n.id === activeId ? { ...n, title: title || "Untitled note", content } : n)
