@@ -1,16 +1,7 @@
-project_id = "qmiwsdnnplybhwimqpjq"
+project_id = "ntiswktkeudikydbacry"
 
 [auth.email]
-enable_confirmations = true
-
-[auth.smtp]
-enabled = true
-host = "smtp.resend.com"
-port = 465
-user = "resend"
-pass = "env(SMTP_PASS)"
-admin_email = "noreply@studymind.com"
-sender_name = "StudyMind"
+enable_confirmations = false
 
 [functions.chat]
 verify_jwt = false
