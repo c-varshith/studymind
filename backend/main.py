@@ -490,22 +490,55 @@ Study material:
         question = str(q.get("question", "")).strip()
         options = q.get("options")
         explanation = str(q.get("explanation", "")).strip()
-        correct_index = q.get("correctIndex")
-
-        if not question or not isinstance(options, list) or len(options) != 4:
+        if not question:
             continue
+
+        # Accept multiple option formats from smaller/local models.
+        normalized_options: list[str] = []
+        if isinstance(options, list):
+            normalized_options = [str(o).strip() for o in options if str(o).strip()]
+        elif isinstance(options, dict):
+            ordered_keys = ["A", "B", "C", "D", "a", "b", "c", "d", "1", "2", "3", "4"]
+            for key in ordered_keys:
+                if key in options and str(options[key]).strip():
+                    normalized_options.append(str(options[key]).strip())
+            if not normalized_options:
+                normalized_options = [str(v).strip() for v in options.values() if str(v).strip()]
+        elif isinstance(options, str):
+            lines = [line.strip(" -\t") for line in options.splitlines()]
+            normalized_options = [line for line in lines if line]
+
+        if len(normalized_options) < 2:
+            continue
+
+        # Enforce exactly 4 options for the frontend contract.
+        if len(normalized_options) > 4:
+            normalized_options = normalized_options[:4]
+        while len(normalized_options) < 4:
+            normalized_options.append(f"Option {len(normalized_options) + 1}")
+
+        correct_index = q.get("correctIndex", q.get("correct_index", q.get("answerIndex", q.get("answer"))))
 
         try:
             ci = int(correct_index)
         except Exception:
-            ci = 0
+            if isinstance(correct_index, str):
+                answer_token = correct_index.strip()
+                letter_map = {"A": 0, "B": 1, "C": 2, "D": 3, "a": 0, "b": 1, "c": 2, "d": 3}
+                if answer_token in letter_map:
+                    ci = letter_map[answer_token]
+                else:
+                    match_idx = next((i for i, opt in enumerate(normalized_options) if opt.lower() == answer_token.lower()), -1)
+                    ci = match_idx if match_idx >= 0 else 0
+            else:
+                ci = 0
 
         if ci < 0 or ci > 3:
             ci = 0
 
         normalized_questions.append({
             "question": question,
-            "options": [str(o) for o in options],
+            "options": normalized_options,
             "correctIndex": ci,
             "explanation": explanation or f"Review the key idea behind question {idx + 1}.",
         })
