@@ -115,9 +115,9 @@ API_EMBED_MODEL=text-embedding-3-small
 
 ```env
 # Local mode models (Ollama-compatible)
-LOCAL_CHAT_MODEL=llama3.2
-LOCAL_QUIZ_MODEL=llama3.2
-LOCAL_FLASHCARD_MODEL=llama3.2
+LOCAL_CHAT_MODEL=llama3.1
+LOCAL_QUIZ_MODEL=llama3.1
+LOCAL_FLASHCARD_MODEL=llama3.1
 LOCAL_EMBED_MODEL=nomic-embed-text
 
 # API key mode models (OpenAI-compatible)
