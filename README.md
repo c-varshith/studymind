@@ -89,8 +89,43 @@ If you want to use a hosted/provider endpoint instead of local Ollama:
 Notes:
 
 - The API key is stored in browser local storage for that user/session on that browser.
-- The backend forwards credentials to the configured endpoint using `Authorization: Bearer <key>` and `api-key: <key>` headers.
-- If your provider requires additional/custom headers beyond those two, adapt backend forwarding in `backend/main.py`.
+- The backend sends credentials using `Authorization: Bearer <key>` and `api-key: <key>` headers.
+- API-key mode now supports OpenAI-compatible APIs directly (no LiteLLM required).
+
+#### Direct provider examples (no gateway)
+
+- OpenRouter endpoint URL: `https://openrouter.ai/api/v1`
+- OpenAI endpoint URL: `https://api.openai.com/v1`
+- Groq endpoint URL: `https://api.groq.com/openai/v1`
+
+Use one of these backend model setups:
+
+1. **Only API-key mode**
+
+```env
+API_CHAT_MODEL=openai/gpt-4o-mini
+API_QUIZ_MODEL=openai/gpt-4o-mini
+API_FLASHCARD_MODEL=openai/gpt-4o-mini
+API_EMBED_MODEL=text-embedding-3-small
+```
+
+2. **Both local mode and API-key mode (recommended)**
+
+```env
+# Local mode models (Ollama-compatible)
+LOCAL_CHAT_MODEL=llama3.2
+LOCAL_QUIZ_MODEL=llama3.2
+LOCAL_FLASHCARD_MODEL=llama3.2
+LOCAL_EMBED_MODEL=nomic-embed-text
+
+# API key mode models (OpenAI-compatible)
+API_CHAT_MODEL=openai/gpt-4o-mini
+API_QUIZ_MODEL=openai/gpt-4o-mini
+API_FLASHCARD_MODEL=openai/gpt-4o-mini
+API_EMBED_MODEL=text-embedding-3-small
+```
+
+You can replace the example model IDs with models available in your provider account.
 
 ---
 
@@ -275,8 +310,21 @@ Frontend at: `http://localhost:5173`
    SUPABASE_URL=https://your-project.supabase.co
    SUPABASE_SERVICE_KEY=your-service-role-key
    OLLAMA_URL=https://optional-default-ollama-url
-   OLLAMA_ALLOWED_SUFFIXES=ngrok-free.dev,ngrok.app,trycloudflare.com
-   OLLAMA_ALLOWED_HOSTS=your-static-tunnel.example.com
+   OPENAI_COMPAT_BASE_PATH=/v1
+   OLLAMA_ALLOWED_SUFFIXES=ngrok-free.dev,ngrok.app,trycloudflare.com,openrouter.ai,openai.com,groq.com
+   OLLAMA_ALLOWED_HOSTS=
+
+   # Local mode models (Ollama)
+   LOCAL_CHAT_MODEL=llama3.2
+   LOCAL_QUIZ_MODEL=llama3.2
+   LOCAL_FLASHCARD_MODEL=llama3.2
+   LOCAL_EMBED_MODEL=nomic-embed-text
+
+   # API-key mode models (OpenAI-compatible)
+   API_CHAT_MODEL=openai/gpt-4o-mini
+   API_QUIZ_MODEL=openai/gpt-4o-mini
+   API_FLASHCARD_MODEL=openai/gpt-4o-mini
+   API_EMBED_MODEL=text-embedding-3-small
    ```
 
 `OLLAMA_URL` is a **default fallback**. Users can override endpoint and mode from the app UI in **Profile -> AI Endpoint**.
@@ -302,6 +350,7 @@ Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it in **Profile -> AI En
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check |
+| GET | `/ai-health` | Validates configured upstream AI endpoint (mode-aware) |
 | POST | `/upload` | Upload and embed a PDF |
 | POST | `/query` | RAG query against a note |
 | POST | `/quiz-generate` | Generate a quiz from a note |
@@ -322,8 +371,17 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Supabase **service role** key (not the anon key) |
 | `OLLAMA_URL` | Optional default fallback AI endpoint URL. Per-user URL can be set in Profile -> AI Endpoint. |
+| `LOCAL_CHAT_MODEL` | Local mode chat model (Ollama) |
+| `LOCAL_QUIZ_MODEL` | Local mode quiz model (Ollama) |
+| `LOCAL_FLASHCARD_MODEL` | Local mode flashcard model (Ollama) |
+| `LOCAL_EMBED_MODEL` | Local mode embedding model (Ollama) |
+| `API_CHAT_MODEL` | API-key mode chat model (OpenAI-compatible provider) |
+| `API_QUIZ_MODEL` | API-key mode quiz model (OpenAI-compatible provider) |
+| `API_FLASHCARD_MODEL` | API-key mode flashcard model (OpenAI-compatible provider) |
+| `API_EMBED_MODEL` | API-key mode embedding model (OpenAI-compatible provider) |
 | `OLLAMA_ALLOWED_SUFFIXES` | Optional comma-separated domain suffix allowlist for `x-ollama-url` (e.g., `ngrok-free.dev,trycloudflare.com`). |
 | `OLLAMA_ALLOWED_HOSTS` | Optional comma-separated exact host allowlist for `x-ollama-url` (e.g., `abc-123.ngrok-free.dev,my-tunnel.example.com`). |
+| `OPENAI_COMPAT_BASE_PATH` | Optional base path for API-key mode endpoints (default: `/v1`) |
 
 When either allowlist variable is set, any user-provided AI endpoint host outside the allowlist is rejected.
 For non-local hosts, the backend also requires `https`.
@@ -341,12 +399,17 @@ For non-local hosts, the backend also requires `https`.
 - Always in local mode: optional `x-ollama-url` when custom endpoint is provided.
 - In API key mode: `x-ai-mode: api-key`, optional `x-ollama-url`, and `x-ollama-api-key`.
 
+### API-key mode provider compatibility
+
+- **Native support:** OpenAI-compatible providers (`/chat/completions` + `/embeddings`) like OpenRouter, OpenAI, Groq.
+- **Local mode support:** Ollama-compatible providers (`/api/generate` + `/api/embeddings`).
+
 ---
 
 ## ⚠️ Known Limitations
 
 - **Local mode depends on your own machine/tunnel.** If Ollama or ngrok stops, AI requests in local mode will fail.
-- **API key mode requires provider compatibility.** The backend forwards `Authorization: Bearer` and `api-key`; providers needing extra headers or different paths may require backend customization.
+- **API key mode requires OpenAI-compatible endpoints.** Providers with non-standard APIs may require backend customization.
 - **Free ngrok URLs are ephemeral** — the URL changes on every restart, so each user must refresh their value in Profile -> AI Endpoint unless they use a static tunnel domain.
 - **Render cold starts** — the free tier spins down after inactivity; the first request may take ~30 seconds to respond.
 

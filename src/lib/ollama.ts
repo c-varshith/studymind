@@ -71,7 +71,7 @@ export function setStoredOllamaUrl(rawUrl: string): string {
   }
 
   if (!isValidHttpUrl(normalized)) {
-    throw new Error("Ollama URL must be a valid http(s) URL.");
+    throw new Error("AI endpoint URL must be a valid http(s) URL.");
   }
 
   window.localStorage.setItem(OLLAMA_URL_STORAGE_KEY, normalized);

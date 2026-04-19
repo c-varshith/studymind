@@ -28,10 +28,22 @@ app.add_middleware(
 SUPABASE_URL      = os.getenv("SUPABASE_URL")
 SUPABASE_KEY      = os.getenv("SUPABASE_SERVICE_KEY")   # service-role key (bypasses RLS)
 OLLAMA_URL        = os.getenv("OLLAMA_URL", "http://localhost:11434")
-EMBED_MODEL       = os.getenv("EMBED_MODEL", "nomic-embed-text")
-CHAT_MODEL        = os.getenv("CHAT_MODEL", "llama3.2")
-QUIZ_MODEL        = os.getenv("QUIZ_MODEL", CHAT_MODEL)
-FLASHCARD_MODEL   = os.getenv("FLASHCARD_MODEL", CHAT_MODEL)
+LEGACY_EMBED_MODEL = os.getenv("EMBED_MODEL")
+LEGACY_CHAT_MODEL = os.getenv("CHAT_MODEL")
+LEGACY_QUIZ_MODEL = os.getenv("QUIZ_MODEL")
+LEGACY_FLASHCARD_MODEL = os.getenv("FLASHCARD_MODEL")
+
+LOCAL_EMBED_MODEL = os.getenv("LOCAL_EMBED_MODEL", LEGACY_EMBED_MODEL or "nomic-embed-text")
+API_EMBED_MODEL = os.getenv("API_EMBED_MODEL", LEGACY_EMBED_MODEL or "text-embedding-3-small")
+
+LOCAL_CHAT_MODEL = os.getenv("LOCAL_CHAT_MODEL", LEGACY_CHAT_MODEL or "llama3.2")
+API_CHAT_MODEL = os.getenv("API_CHAT_MODEL", LEGACY_CHAT_MODEL or "openai/gpt-4o-mini")
+
+LOCAL_QUIZ_MODEL = os.getenv("LOCAL_QUIZ_MODEL", LEGACY_QUIZ_MODEL or LOCAL_CHAT_MODEL)
+API_QUIZ_MODEL = os.getenv("API_QUIZ_MODEL", LEGACY_QUIZ_MODEL or API_CHAT_MODEL)
+
+LOCAL_FLASHCARD_MODEL = os.getenv("LOCAL_FLASHCARD_MODEL", LEGACY_FLASHCARD_MODEL or LOCAL_CHAT_MODEL)
+API_FLASHCARD_MODEL = os.getenv("API_FLASHCARD_MODEL", LEGACY_FLASHCARD_MODEL or API_CHAT_MODEL)
 TTS_MAX_CHARS     = int(os.getenv("TTS_MAX_CHARS", "12000"))
 TTS_ENGINE        = os.getenv("TTS_ENGINE", "espeak-ng")
 TTS_VOICE         = os.getenv("TTS_VOICE", "en-us")
@@ -47,6 +59,7 @@ def parse_csv_env(name: str) -> set[str]:
 
 OLLAMA_ALLOWED_HOSTS = parse_csv_env("OLLAMA_ALLOWED_HOSTS")
 OLLAMA_ALLOWED_SUFFIXES = parse_csv_env("OLLAMA_ALLOWED_SUFFIXES")
+OPENAI_COMPAT_BASE_PATH = os.getenv("OPENAI_COMPAT_BASE_PATH", "/v1")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in backend/.env")
@@ -177,6 +190,35 @@ def resolve_ollama_url(request: Request) -> str:
         raise HTTPException(400, f"Invalid x-ollama-url header: {exc}") from exc
 
 
+def is_api_key_mode(request: Request) -> bool:
+    return (request.headers.get("x-ai-mode") or "").strip().lower() == "api-key"
+
+
+def build_openai_compat_url(base_url: str, path: str) -> str:
+    base = base_url.rstrip("/")
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    base_path = OPENAI_COMPAT_BASE_PATH if OPENAI_COMPAT_BASE_PATH.startswith("/") else f"/{OPENAI_COMPAT_BASE_PATH}"
+    if base.endswith(base_path):
+        return f"{base}{normalized_path}"
+    return f"{base}{base_path}{normalized_path}"
+
+
+def get_mode_models(api_key_mode: bool) -> dict[str, str]:
+    if api_key_mode:
+        return {
+            "chat": API_CHAT_MODEL,
+            "quiz": API_QUIZ_MODEL,
+            "flashcard": API_FLASHCARD_MODEL,
+            "embed": API_EMBED_MODEL,
+        }
+    return {
+        "chat": LOCAL_CHAT_MODEL,
+        "quiz": LOCAL_QUIZ_MODEL,
+        "flashcard": LOCAL_FLASHCARD_MODEL,
+        "embed": LOCAL_EMBED_MODEL,
+    }
+
+
 def get_upstream_ai_headers(request: Request) -> dict[str, str]:
     api_key = (request.headers.get("x-ollama-api-key") or "").strip()
     if not api_key:
@@ -187,21 +229,96 @@ def get_upstream_ai_headers(request: Request) -> dict[str, str]:
     }
 
 
-async def get_embedding(text: str, ollama_url: str, upstream_headers: dict[str, str] | None = None) -> list[float]:
-    """Call Ollama embeddings API."""
+async def get_embedding(
+    text: str,
+    embed_model: str,
+    ai_url: str,
+    upstream_headers: dict[str, str] | None = None,
+    api_key_mode: bool = False,
+) -> list[float]:
+    """Call embeddings API for either Ollama or OpenAI-compatible providers."""
     try:
+        payload = {"model": embed_model}
+        endpoint = f"{ai_url}/api/embeddings"
+        if api_key_mode:
+            endpoint = build_openai_compat_url(ai_url, "/embeddings")
+            payload["input"] = text
+        else:
+            payload["prompt"] = text
+
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
-                f"{ollama_url}/api/embeddings",
+                endpoint,
                 headers=upstream_headers or None,
-                json={"model": EMBED_MODEL, "prompt": text},
+                json=payload,
             )
             r.raise_for_status()
-            return r.json()["embedding"]
+
+            data = r.json()
+            if api_key_mode:
+                items = data.get("data") if isinstance(data, dict) else None
+                if isinstance(items, list) and items:
+                    first = items[0]
+                    if isinstance(first, dict) and isinstance(first.get("embedding"), list):
+                        return first["embedding"]
+                raise HTTPException(502, "OpenAI-compatible embeddings response missing data[0].embedding")
+
+            if isinstance(data, dict) and isinstance(data.get("embedding"), list):
+                return data["embedding"]
+            raise HTTPException(502, "Ollama embeddings response missing embedding")
     except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
+        raise HTTPException(503, f"Could not reach AI endpoint at {ai_url}: {e}") from e
     except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Ollama embeddings failed ({e.response.status_code}): {e.response.text[:300]}") from e
+        raise HTTPException(502, f"Embeddings request failed ({e.response.status_code}): {e.response.text[:300]}") from e
+
+
+async def generate_text(
+    prompt: str,
+    model: str,
+    ai_url: str,
+    upstream_headers: dict[str, str] | None = None,
+    api_key_mode: bool = False,
+) -> str:
+    try:
+        endpoint = f"{ai_url}/api/generate"
+        payload: dict = {"model": model, "prompt": prompt, "stream": False}
+        if api_key_mode:
+            endpoint = build_openai_compat_url(ai_url, "/chat/completions")
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.2,
+            }
+
+        async with httpx.AsyncClient(timeout=180) as client:
+            r = await client.post(endpoint, headers=upstream_headers or None, json=payload)
+            r.raise_for_status()
+            data = r.json()
+
+            if api_key_mode:
+                choices = data.get("choices") if isinstance(data, dict) else None
+                if isinstance(choices, list) and choices:
+                    message = choices[0].get("message") if isinstance(choices[0], dict) else None
+                    content = message.get("content") if isinstance(message, dict) else ""
+                    if isinstance(content, str):
+                        return content
+                    if isinstance(content, list):
+                        chunks = [item.get("text", "") for item in content if isinstance(item, dict)]
+                        joined = "".join(chunks).strip()
+                        if joined:
+                            return joined
+                raise HTTPException(502, "OpenAI-compatible response missing choices[0].message.content")
+
+            response_text = data.get("response") if isinstance(data, dict) else None
+            if isinstance(response_text, str):
+                return response_text
+            raise HTTPException(502, "Ollama response missing response field")
+    except httpx.RequestError as e:
+        raise HTTPException(503, f"Could not reach AI endpoint at {ai_url}: {e}") from e
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, f"Generation request failed ({e.response.status_code}): {e.response.text[:300]}") from e
 
 def synthesize_with_espeak(text: str, speed: float = 1.0, voice: str = "default") -> bytes:
     """Generate speech audio from text using espeak-ng."""
@@ -254,8 +371,14 @@ def health():
     espeak_bin = shutil.which("espeak-ng") or shutil.which("espeak")
     return {
         "status": "ok",
-        "embed_model": EMBED_MODEL,
-        "chat_model": CHAT_MODEL,
+        "local_embed_model": LOCAL_EMBED_MODEL,
+        "api_embed_model": API_EMBED_MODEL,
+        "local_chat_model": LOCAL_CHAT_MODEL,
+        "api_chat_model": API_CHAT_MODEL,
+        "local_quiz_model": LOCAL_QUIZ_MODEL,
+        "api_quiz_model": API_QUIZ_MODEL,
+        "local_flashcard_model": LOCAL_FLASHCARD_MODEL,
+        "api_flashcard_model": API_FLASHCARD_MODEL,
         "default_ollama_url": OLLAMA_URL,
         "ollama_allowed_hosts": sorted(OLLAMA_ALLOWED_HOSTS),
         "ollama_allowed_suffixes": sorted(OLLAMA_ALLOWED_SUFFIXES),
@@ -263,6 +386,33 @@ def health():
         "tts_binary": espeak_bin,
         "tts_voice": TTS_VOICE,
         "tts_default_speed": TTS_DEFAULT_SPEED,
+    }
+
+
+@app.get("/ai-health")
+async def ai_health(request: Request):
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    upstream_headers = get_upstream_ai_headers(request)
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            if api_key_mode:
+                health_url = build_openai_compat_url(ai_url, "/models")
+            else:
+                health_url = f"{ai_url}/api/tags"
+
+            res = await client.get(health_url, headers=upstream_headers or None)
+            res.raise_for_status()
+    except httpx.RequestError as e:
+        raise HTTPException(503, f"Could not reach AI endpoint at {ai_url}: {e}") from e
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(502, f"AI endpoint health check failed ({e.response.status_code}): {e.response.text[:300]}") from e
+
+    return {
+        "status": "ok",
+        "mode": "api-key" if api_key_mode else "local",
+        "endpoint": ai_url,
     }
 
 
@@ -298,7 +448,9 @@ async def upload_pdf(
         raise HTTPException(400, "No extractable text found in this PDF (it may be scanned/image-based)")
 
     chunks = chunk_text(full_text)
-    ollama_url = resolve_ollama_url(request)
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    mode_models = get_mode_models(api_key_mode)
     upstream_headers = get_upstream_ai_headers(request)
 
     # Delete any existing chunks for this note (re-upload scenario)
@@ -310,7 +462,7 @@ async def upload_pdf(
     # Embed + store chunks
     rows = []
     for i, chunk in enumerate(chunks):
-        embedding = await get_embedding(chunk, ollama_url, upstream_headers)
+        embedding = await get_embedding(chunk, mode_models["embed"], ai_url, upstream_headers, api_key_mode)
         rows.append({
             "note_id":     note_id,
             "user_id":     user_id,
@@ -376,14 +528,16 @@ async def query_rag(req: QueryRequest, request: Request):
     4. Call Ollama chat model
     Returns the answer + source chunks.
     """
-    model = req.model or CHAT_MODEL
-    ollama_url = resolve_ollama_url(request)
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    mode_models = get_mode_models(api_key_mode)
+    model = req.model or mode_models["chat"]
     upstream_headers = get_upstream_ai_headers(request)
 
     sources = []
 
     if req.note_id:
-        q_embedding = await get_embedding(req.question, ollama_url, upstream_headers)
+        q_embedding = await get_embedding(req.question, mode_models["embed"], ai_url, upstream_headers, api_key_mode)
 
         # Vector search
         try:
@@ -416,19 +570,7 @@ Question: {req.question}
 
 Answer:"""
 
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            r = await client.post(
-                f"{ollama_url}/api/generate",
-                headers=upstream_headers or None,
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            r.raise_for_status()
-            answer = r.json()["response"]
-    except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Ollama generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
+    answer = await generate_text(prompt, model, ai_url, upstream_headers, api_key_mode)
 
     return {"answer": answer, "sources": sources}
 
@@ -444,8 +586,10 @@ async def generate_quiz(req: QuizRequest, request: Request):
     if difficulty not in {"easy", "medium", "hard"}:
         difficulty = "medium"
 
-    model = req.model or QUIZ_MODEL
-    ollama_url = resolve_ollama_url(request)
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    mode_models = get_mode_models(api_key_mode)
+    model = req.model or mode_models["quiz"]
     upstream_headers = get_upstream_ai_headers(request)
 
     prompt = f"""Generate {count} multiple-choice quiz questions from the study material below.
@@ -475,19 +619,7 @@ Study material:
 {content[:12000]}
 """
 
-    try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            r = await client.post(
-                f"{ollama_url}/api/generate",
-                headers=upstream_headers or None,
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            r.raise_for_status()
-            raw = r.json().get("response", "")
-    except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Ollama quiz generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
+    raw = await generate_text(prompt, model, ai_url, upstream_headers, api_key_mode)
 
     try:
         parsed = parse_json_block(raw)
@@ -572,8 +704,10 @@ async def generate_flashcards(req: FlashcardsRequest, request: Request):
         raise HTTPException(400, "content required")
 
     count = max(1, min(50, int(req.count)))
-    model = req.model or FLASHCARD_MODEL
-    ollama_url = resolve_ollama_url(request)
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    mode_models = get_mode_models(api_key_mode)
+    model = req.model or mode_models["flashcard"]
     upstream_headers = get_upstream_ai_headers(request)
 
     prompt = f"""Generate {count} high-quality study flashcards from the material below.
@@ -597,19 +731,7 @@ Study material:
 {content[:12000]}
 """
 
-    try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            r = await client.post(
-                f"{ollama_url}/api/generate",
-                headers=upstream_headers or None,
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            r.raise_for_status()
-            raw = r.json().get("response", "")
-    except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Ollama flashcard generation failed ({e.response.status_code}): {e.response.text[:300]}") from e
+    raw = await generate_text(prompt, model, ai_url, upstream_headers, api_key_mode)
 
     try:
         parsed = parse_json_block(raw)
@@ -643,9 +765,11 @@ async def summarize_note(req: SummaryRequest, request: Request):
         raise HTTPException(400, "content required")
 
     max_points = max(3, min(15, int(req.max_points)))
-    model = req.model or CHAT_MODEL
     mode = (req.mode or "standard").strip().lower()
-    ollama_url = resolve_ollama_url(request)
+    ai_url = resolve_ollama_url(request)
+    api_key_mode = is_api_key_mode(request)
+    mode_models = get_mode_models(api_key_mode)
+    model = req.model or mode_models["chat"]
     upstream_headers = get_upstream_ai_headers(request)
 
     if mode == "eli5":
@@ -673,19 +797,7 @@ Study material:
 {content[:15000]}
 """
 
-        try:
-            async with httpx.AsyncClient(timeout=180) as client:
-                r = await client.post(
-                    f"{ollama_url}/api/generate",
-                    headers=upstream_headers or None,
-                    json={"model": model, "prompt": prompt, "stream": False},
-                )
-                r.raise_for_status()
-                raw = str(r.json().get("response", "")).strip()
-        except httpx.RequestError as e:
-            raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(502, f"Ollama summarization failed ({e.response.status_code}): {e.response.text[:300]}") from e
+        raw = (await generate_text(prompt, model, ai_url, upstream_headers, api_key_mode)).strip()
 
         try:
             parsed = parse_json_block(raw)
@@ -754,19 +866,7 @@ Study material:
 {content[:15000]}
 """
 
-    try:
-        async with httpx.AsyncClient(timeout=180) as client:
-            r = await client.post(
-                f"{ollama_url}/api/generate",
-                headers=upstream_headers or None,
-                json={"model": model, "prompt": prompt, "stream": False},
-            )
-            r.raise_for_status()
-            summary = str(r.json().get("response", "")).strip()
-    except httpx.RequestError as e:
-        raise HTTPException(503, f"Could not reach Ollama at {ollama_url}: {e}") from e
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(502, f"Ollama summarization failed ({e.response.status_code}): {e.response.text[:300]}") from e
+    summary = (await generate_text(prompt, model, ai_url, upstream_headers, api_key_mode)).strip()
 
     if not summary:
         raise HTTPException(502, "Model returned an empty summary")

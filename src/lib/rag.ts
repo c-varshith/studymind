@@ -49,8 +49,8 @@ export async function queryRag(
 
 export async function checkBackend(): Promise<boolean> {
   try {
-    const res = await fetch(`${BACKEND}/health`, {
-      signal: AbortSignal.timeout(3000),
+    const res = await fetch(`${BACKEND}/ai-health`, {
+      signal: AbortSignal.timeout(10000),
       headers: getOllamaHeaders(),
     });
     return res.ok;
