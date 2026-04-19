@@ -547,6 +547,13 @@ async def query_rag(req: QueryRequest, request: Request):
                 "match_count":     5,
             }).execute()
         except Exception as e:
+            error_text = str(e)
+            if "different vector dimensions" in error_text.lower():
+                raise HTTPException(
+                    400,
+                    "This note was embedded with a different AI embedding model. "
+                    "Please re-upload the PDF (or re-embed the note) in the current AI mode, then try Ask this doc again.",
+                ) from e
             raise HTTPException(500, f"Vector search failed: {e}") from e
 
         if result.data:

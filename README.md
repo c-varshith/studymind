@@ -86,6 +86,8 @@ If you want to use a hosted/provider endpoint instead of local Ollama:
 5. Click **Save AI settings**.
 6. Click **Test connection**.
 
+> ✅ **Important:** In API-key mode, enter both **endpoint URL** and **API key** in Profile. Only leave URL empty if your backend default `OLLAMA_URL` is already set to the same provider endpoint (for example `https://openrouter.ai/api/v1`).
+
 Notes:
 
 - The API key is stored in browser local storage for that user/session on that browser.
