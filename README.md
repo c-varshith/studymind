@@ -1,4 +1,4 @@
-# 🧠 StudyMind — AI-Powered Study Assistant
+# StudyMind — AI-Powered Study Assistant
 
 StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that lets you upload PDFs, chat with your notes, generate quizzes and flashcards, and get AI-powered summaries.
 
