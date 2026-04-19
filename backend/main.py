@@ -52,6 +52,20 @@ CHUNK_SIZE        = int(os.getenv("CHUNK_SIZE", "400"))   # words per chunk
 CHUNK_OVERLAP     = int(os.getenv("CHUNK_OVERLAP", "50")) # word overlap between chunks
 
 
+def parse_optional_positive_int_env(name: str) -> int | None:
+    raw = (os.getenv(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+        return value if value > 0 else None
+    except ValueError:
+        return None
+
+
+API_EMBED_DIMENSIONS = parse_optional_positive_int_env("API_EMBED_DIMENSIONS")
+
+
 def parse_csv_env(name: str) -> set[str]:
     raw = os.getenv(name, "")
     return {item.strip().lower() for item in raw.split(",") if item.strip()}
@@ -243,6 +257,8 @@ async def get_embedding(
         if api_key_mode:
             endpoint = build_openai_compat_url(ai_url, "/embeddings")
             payload["input"] = text
+            if API_EMBED_DIMENSIONS is not None:
+                payload["dimensions"] = API_EMBED_DIMENSIONS
         else:
             payload["prompt"] = text
 
@@ -373,6 +389,7 @@ def health():
         "status": "ok",
         "local_embed_model": LOCAL_EMBED_MODEL,
         "api_embed_model": API_EMBED_MODEL,
+        "api_embed_dimensions": API_EMBED_DIMENSIONS,
         "local_chat_model": LOCAL_CHAT_MODEL,
         "api_chat_model": API_CHAT_MODEL,
         "local_quiz_model": LOCAL_QUIZ_MODEL,
@@ -477,6 +494,15 @@ async def upload_pdf(
         for start in range(0, len(rows), batch_size):
             sb.table("document_chunks").insert(rows[start : start + batch_size]).execute()
     except Exception as e:
+        error_text = str(e)
+        lower = error_text.lower()
+        if "dimensions" in lower and "expected" in lower:
+            raise HTTPException(
+                400,
+                "Embedding dimension mismatch while saving chunks. "
+                "Set API_EMBED_DIMENSIONS to match your database vector size (for this project, use 768), "
+                "then re-upload the PDF.",
+            ) from e
         raise HTTPException(500, f"Failed to store chunk embeddings in Supabase: {e}") from e
 
     return {

@@ -125,6 +125,7 @@ API_CHAT_MODEL=openai/gpt-4o-mini
 API_QUIZ_MODEL=openai/gpt-4o-mini
 API_FLASHCARD_MODEL=openai/gpt-4o-mini
 API_EMBED_MODEL=text-embedding-3-small
+API_EMBED_DIMENSIONS=768
 ```
 
 You can replace the example model IDs with models available in your provider account.
@@ -381,6 +382,7 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 | `API_QUIZ_MODEL` | API-key mode quiz model (OpenAI-compatible provider) |
 | `API_FLASHCARD_MODEL` | API-key mode flashcard model (OpenAI-compatible provider) |
 | `API_EMBED_MODEL` | API-key mode embedding model (OpenAI-compatible provider) |
+| `API_EMBED_DIMENSIONS` | Optional embedding size override for API-key mode (set `768` to match this project's current pgvector schema). |
 | `OLLAMA_ALLOWED_SUFFIXES` | Optional comma-separated domain suffix allowlist for `x-ollama-url` (e.g., `ngrok-free.dev,trycloudflare.com`). |
 | `OLLAMA_ALLOWED_HOSTS` | Optional comma-separated exact host allowlist for `x-ollama-url` (e.g., `abc-123.ngrok-free.dev,my-tunnel.example.com`). |
 | `OPENAI_COMPAT_BASE_PATH` | Optional base path for API-key mode endpoints (default: `/v1`) |
@@ -414,6 +416,16 @@ For non-local hosts, the backend also requires `https`.
 - **API key mode requires OpenAI-compatible endpoints.** Providers with non-standard APIs may require backend customization.
 - **Free ngrok URLs are ephemeral** — the URL changes on every restart, so each user must refresh their value in Profile -> AI Endpoint unless they use a static tunnel domain.
 - **Render cold starts** — the free tier spins down after inactivity; the first request may take ~30 seconds to respond.
+
+### Common error: `expected 768 dimensions, not 1536`
+
+If PDF upload fails with a vector dimension error, your API embedding output size does not match the database schema.
+
+Fix:
+
+1. Set `API_EMBED_DIMENSIONS=768` in Render backend env.
+2. Redeploy backend.
+3. Re-upload the PDF note.
 
 ---
 
