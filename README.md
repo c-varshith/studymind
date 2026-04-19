@@ -318,9 +318,9 @@ Frontend at: `http://localhost:5173`
    OLLAMA_ALLOWED_HOSTS=
 
    # Local mode models (Ollama)
-   LOCAL_CHAT_MODEL=llama3.2
-   LOCAL_QUIZ_MODEL=llama3.2
-   LOCAL_FLASHCARD_MODEL=llama3.2
+   LOCAL_CHAT_MODEL=llama3.1
+   LOCAL_QUIZ_MODEL=llama3.1
+   LOCAL_FLASHCARD_MODEL=llama3.1
    LOCAL_EMBED_MODEL=nomic-embed-text
 
    # API-key mode models (OpenAI-compatible)
