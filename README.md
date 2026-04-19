@@ -23,7 +23,7 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 
 ```
 ┌─────────────────────┐        ┌──────────────────────┐
-│   Frontend (Vercel) │──────▶│  Backend (Render)    │
+│   Frontend (Vercel) │──────▶ │  Backend (Render)    │
 │   React + Vite      │        │  FastAPI + Python    │
 └─────────────────────┘        └──────────┬───────────┘
                                           │
