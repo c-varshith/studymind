@@ -23,18 +23,18 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 
 ```
 ┌─────────────────────┐        ┌──────────────────────┐
-│   Frontend (Vercel) │──────▶│  Backend (Render)     │
-│   React + Vite      │        │  FastAPI + Python     │
+│   Frontend (Vercel) │──────▶│  Backend (Render)    │
+│   React + Vite      │        │  FastAPI + Python    │
 └─────────────────────┘        └──────────┬───────────┘
-                                           │
-                    ┌──────────────────────┼────────────────────┐
-                    │                      │                    │
-           ┌────────▼──────┐    ┌──────────▼────────┐  ┌──────▼──────┐
-           │ Supabase      │    │ ngrok tunnel       │  │ Local Ollama│
-           │ (Postgres +   │    │ (public HTTPS URL) │  │ on your     │
-           │  pgvector)    │    └──────────┬─────────┘  │  machine)   │
-           └───────────────┘               │             └──────▲──────┘
-                                           └────────────────────┘
+                                          │
+                    ┌─────────────────────┼───────────────────┐
+                    │                     │                   │
+           ┌────────▼──────┐    ┌─────────▼─────────┐  ┌──────▼──────┐
+           │ Supabase      │    │ ngrok tunnel      │  │ Local Ollama│
+           │ (Postgres +   │    │ (public HTTPS URL)│  │ on your     │
+           │  pgvector)    │    └──────────┬────────┘  │ machine)    │
+           └───────────────┘               │           └──────▲──────┘
+                                           └──────────────────┘
 
 ## AI Connection Modes
 
