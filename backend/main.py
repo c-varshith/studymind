@@ -177,12 +177,23 @@ def resolve_ollama_url(request: Request) -> str:
         raise HTTPException(400, f"Invalid x-ollama-url header: {exc}") from exc
 
 
-async def get_embedding(text: str, ollama_url: str) -> list[float]:
+def get_upstream_ai_headers(request: Request) -> dict[str, str]:
+    api_key = (request.headers.get("x-ollama-api-key") or "").strip()
+    if not api_key:
+        return {}
+    return {
+        "Authorization": f"Bearer {api_key}",
+        "api-key": api_key,
+    }
+
+
+async def get_embedding(text: str, ollama_url: str, upstream_headers: dict[str, str] | None = None) -> list[float]:
     """Call Ollama embeddings API."""
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(
                 f"{ollama_url}/api/embeddings",
+                headers=upstream_headers or None,
                 json={"model": EMBED_MODEL, "prompt": text},
             )
             r.raise_for_status()
@@ -288,6 +299,7 @@ async def upload_pdf(
 
     chunks = chunk_text(full_text)
     ollama_url = resolve_ollama_url(request)
+    upstream_headers = get_upstream_ai_headers(request)
 
     # Delete any existing chunks for this note (re-upload scenario)
     try:
@@ -298,7 +310,7 @@ async def upload_pdf(
     # Embed + store chunks
     rows = []
     for i, chunk in enumerate(chunks):
-        embedding = await get_embedding(chunk, ollama_url)
+        embedding = await get_embedding(chunk, ollama_url, upstream_headers)
         rows.append({
             "note_id":     note_id,
             "user_id":     user_id,
@@ -366,11 +378,12 @@ async def query_rag(req: QueryRequest, request: Request):
     """
     model = req.model or CHAT_MODEL
     ollama_url = resolve_ollama_url(request)
+    upstream_headers = get_upstream_ai_headers(request)
 
     sources = []
 
     if req.note_id:
-        q_embedding = await get_embedding(req.question, ollama_url)
+        q_embedding = await get_embedding(req.question, ollama_url, upstream_headers)
 
         # Vector search
         try:
@@ -407,6 +420,7 @@ Answer:"""
         async with httpx.AsyncClient(timeout=120) as client:
             r = await client.post(
                 f"{ollama_url}/api/generate",
+                headers=upstream_headers or None,
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
@@ -432,6 +446,7 @@ async def generate_quiz(req: QuizRequest, request: Request):
 
     model = req.model or QUIZ_MODEL
     ollama_url = resolve_ollama_url(request)
+    upstream_headers = get_upstream_ai_headers(request)
 
     prompt = f"""Generate {count} multiple-choice quiz questions from the study material below.
 Return ONLY valid JSON in this exact shape:
@@ -464,6 +479,7 @@ Study material:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
                 f"{ollama_url}/api/generate",
+                headers=upstream_headers or None,
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
@@ -558,6 +574,7 @@ async def generate_flashcards(req: FlashcardsRequest, request: Request):
     count = max(1, min(50, int(req.count)))
     model = req.model or FLASHCARD_MODEL
     ollama_url = resolve_ollama_url(request)
+    upstream_headers = get_upstream_ai_headers(request)
 
     prompt = f"""Generate {count} high-quality study flashcards from the material below.
 Return ONLY valid JSON in this exact shape:
@@ -584,6 +601,7 @@ Study material:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
                 f"{ollama_url}/api/generate",
+                headers=upstream_headers or None,
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()
@@ -628,6 +646,7 @@ async def summarize_note(req: SummaryRequest, request: Request):
     model = req.model or CHAT_MODEL
     mode = (req.mode or "standard").strip().lower()
     ollama_url = resolve_ollama_url(request)
+    upstream_headers = get_upstream_ai_headers(request)
 
     if mode == "eli5":
         prompt = f"""You are helping a student understand a topic like they are 10 years old.
@@ -658,6 +677,7 @@ Study material:
             async with httpx.AsyncClient(timeout=180) as client:
                 r = await client.post(
                     f"{ollama_url}/api/generate",
+                    headers=upstream_headers or None,
                     json={"model": model, "prompt": prompt, "stream": False},
                 )
                 r.raise_for_status()
@@ -738,6 +758,7 @@ Study material:
         async with httpx.AsyncClient(timeout=180) as client:
             r = await client.post(
                 f"{ollama_url}/api/generate",
+                headers=upstream_headers or None,
                 json={"model": model, "prompt": prompt, "stream": False},
             )
             r.raise_for_status()

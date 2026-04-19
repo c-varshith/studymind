@@ -1,8 +1,10 @@
 # 🧠 StudyMind — AI-Powered Study Assistant
 
-StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that lets you upload PDFs, chat with your notes, generate quizzes and flashcards, and get AI-powered summaries — all powered by locally running LLMs via Ollama.
+StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that lets you upload PDFs, chat with your notes, generate quizzes and flashcards, and get AI-powered summaries.
 
-**Live Demo:** https://studymind-rho.vercel.app *(requires local Ollama instance — see below)*
+By default, StudyMind uses **local models via Ollama**. Users can now also switch to an **API key mode** from the Profile page and connect to an external AI endpoint.
+
+**Live Demo:** https://studymind-rho.vercel.app
 
 ---
 
@@ -34,11 +36,20 @@ StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that 
            └───────────────┘               │             └──────▲──────┘
                                            └────────────────────┘
 
-> ⚠️ **Heads-up — AI features require a local Ollama instance.**
->
-> The chat, quiz, flashcard, summary, and embedding features call an LLM running on **your own machine** via Ollama. The deployed backend reaches it through an ngrok tunnel. Authentication, note storage, and the UI all work without Ollama — but any AI action will fail until you complete the two steps below.
+## AI Connection Modes
 
-### Step 1 — Run Ollama locally
+StudyMind supports two AI modes from **Profile -> AI Endpoint**:
+
+- **Local model mode (default):** uses Ollama on your own machine (directly in local dev, or through a tunnel for hosted frontend/backend).
+- **API key mode:** disable local mode, enter an endpoint URL and API key, then save. The app sends the key only in API key mode.
+
+Use **Test connection** in the same Profile section to verify your current settings before using chat, quiz, flashcards, summaries, or PDF embedding.
+
+> ⚠️ If local mode is enabled and your Ollama/tunnel is down, AI features will fail.
+
+### Local Mode Setup (Recommended)
+
+#### Step 1 — Run Ollama locally
 
 Install [Ollama](https://ollama.com), pull the required models, and start the server:
 
@@ -48,7 +59,7 @@ ollama pull nomic-embed-text  # ~274 MB — embedding model
 ollama serve
 ```
 
-### Step 2 — Expose Ollama via ngrok
+#### Step 2 — Expose Ollama via ngrok (for hosted app usage)
 
 The backend on Render can't reach `localhost` directly, so ngrok gives it a public HTTPS URL.
 
@@ -58,11 +69,28 @@ The backend on Render can't reach `localhost` directly, so ngrok gives it a publ
    ngrok http 11434 --host-header="localhost:11434"
    ```
 3. Copy the `https://xxxx-xxxx.ngrok-free.dev` URL from the terminal output.
-4. Open https://studymind-rho.vercel.app, go to **Profile → AI Endpoint**, and paste the ngrok URL.
+4. Open https://studymind-rho.vercel.app, go to **Profile -> AI Endpoint**, keep **Use local model** enabled, and paste the ngrok URL.
 
-> **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile → AI Endpoint** when it changes.
+> **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile -> AI Endpoint** when it changes.
 
 Once both are running, head to the site, upload a PDF, and start chatting.
+
+### API Key Mode Setup
+
+If you want to use a hosted/provider endpoint instead of local Ollama:
+
+1. Go to **Profile -> AI Endpoint**.
+2. Turn off **Use local model**.
+3. Enter your AI endpoint URL.
+4. Enter your API key.
+5. Click **Save AI settings**.
+6. Click **Test connection**.
+
+Notes:
+
+- The API key is stored in browser local storage for that user/session on that browser.
+- The backend forwards credentials to the configured endpoint using `Authorization: Bearer <key>` and `api-key: <key>` headers.
+- If your provider requires additional/custom headers beyond those two, adapt backend forwarding in `backend/main.py`.
 
 ---
 
@@ -73,7 +101,7 @@ Once both are running, head to the site, upload a PDF, and start chatting.
 | Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | FastAPI, Python 3.12 |
 | Database | Supabase (PostgreSQL + pgvector) |
-| AI Models | Ollama (local) — llama3.1, nomic-embed-text |
+| AI Models | Local Ollama (llama3.1, nomic-embed-text) or API-key-based endpoint |
 | Hosting | Vercel (frontend), Render (backend) |
 | Tunnel | ngrok (exposes local Ollama to Render) |
 
@@ -187,7 +215,7 @@ pip install -r requirements.txt
 Create `backend/.env`:
 ```env
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-service-role-key
+SUPABASE_SERVICE_KEY=your-service-role-key
 OLLAMA_URL=http://localhost:11434
 ```
 
@@ -208,8 +236,8 @@ npm install
 Create `.env.local` in the project root:
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-VITE_API_URL=http://localhost:8000
+VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+VITE_RAG_BACKEND_URL=http://localhost:8000
 ```
 
 Run the frontend:
@@ -230,8 +258,8 @@ Frontend at: `http://localhost:5173`
 3. Add environment variables:
    ```
    VITE_SUPABASE_URL=https://your-project.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key
-   VITE_API_URL=https://your-backend.onrender.com
+   VITE_SUPABASE_PUBLISHABLE_KEY=your-anon-key
+   VITE_RAG_BACKEND_URL=https://your-backend.onrender.com
    ```
 4. Deploy — `vercel.json` in the root handles client-side routing automatically.
 
@@ -245,13 +273,13 @@ Frontend at: `http://localhost:5173`
 6. Add environment variables:
    ```
    SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_KEY=your-service-role-key
+   SUPABASE_SERVICE_KEY=your-service-role-key
    OLLAMA_URL=https://optional-default-ollama-url
    OLLAMA_ALLOWED_SUFFIXES=ngrok-free.dev,ngrok.app,trycloudflare.com
    OLLAMA_ALLOWED_HOSTS=your-static-tunnel.example.com
    ```
 
-`OLLAMA_URL` is now only a **default fallback**. Users can provide their own Ollama tunnel URL from the app UI, and the backend will use that per request.
+`OLLAMA_URL` is a **default fallback**. Users can override endpoint and mode from the app UI in **Profile -> AI Endpoint**.
 
 ### Exposing Ollama via ngrok
 
@@ -263,9 +291,9 @@ ollama serve
 ngrok http 11434 --host-header="localhost:11434"
 ```
 
-Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it in **Profile → AI Endpoint** inside the app.
+Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it in **Profile -> AI Endpoint** inside the app.
 
-> ⚠️ Free ngrok URLs change on every restart. Update the URL in **Profile → AI Endpoint** each time, or use a paid ngrok plan for a static domain.
+> ⚠️ Free ngrok URLs change on every restart. Update the URL in **Profile -> AI Endpoint** each time, or use a paid ngrok plan for a static domain.
 
 ---
 
@@ -292,8 +320,8 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 | Variable | Description |
 |----------|-------------|
 | `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_KEY` | Supabase **service role** key (not the anon key) |
-| `OLLAMA_URL` | Optional default fallback Ollama URL. Per-user URL can be set in Profile → AI Endpoint. |
+| `SUPABASE_SERVICE_KEY` | Supabase **service role** key (not the anon key) |
+| `OLLAMA_URL` | Optional default fallback AI endpoint URL. Per-user URL can be set in Profile -> AI Endpoint. |
 | `OLLAMA_ALLOWED_SUFFIXES` | Optional comma-separated domain suffix allowlist for `x-ollama-url` (e.g., `ngrok-free.dev,trycloudflare.com`). |
 | `OLLAMA_ALLOWED_HOSTS` | Optional comma-separated exact host allowlist for `x-ollama-url` (e.g., `abc-123.ngrok-free.dev,my-tunnel.example.com`). |
 
@@ -305,15 +333,21 @@ For non-local hosts, the backend also requires `https`.
 | Variable | Description |
 |----------|-------------|
 | `VITE_SUPABASE_URL` | Your Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `VITE_API_URL` | Render backend URL in production; `http://localhost:8000` locally |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/public key |
+| `VITE_RAG_BACKEND_URL` | Backend URL in production; can be `http://localhost:8000` locally |
+
+### Runtime headers sent by frontend
+
+- Always in local mode: optional `x-ollama-url` when custom endpoint is provided.
+- In API key mode: `x-ai-mode: api-key`, optional `x-ollama-url`, and `x-ollama-api-key`.
 
 ---
 
 ## ⚠️ Known Limitations
 
-- **Ollama must be running locally** for all AI features to work. If your machine is off or ngrok has stopped, chat, quiz generation, flashcards, summaries, and embeddings will all fail.
-- **Free ngrok URLs are ephemeral** — the URL changes on every restart, so each user must refresh their value in Profile → AI Endpoint unless they use a static tunnel domain.
+- **Local mode depends on your own machine/tunnel.** If Ollama or ngrok stops, AI requests in local mode will fail.
+- **API key mode requires provider compatibility.** The backend forwards `Authorization: Bearer` and `api-key`; providers needing extra headers or different paths may require backend customization.
+- **Free ngrok URLs are ephemeral** — the URL changes on every restart, so each user must refresh their value in Profile -> AI Endpoint unless they use a static tunnel domain.
 - **Render cold starts** — the free tier spins down after inactivity; the first request may take ~30 seconds to respond.
 
 ---

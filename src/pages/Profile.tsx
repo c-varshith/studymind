@@ -5,9 +5,19 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Shield, UserCircle2 } from "lucide-react";
-import { getStoredOllamaUrl, setStoredOllamaUrl } from "@/lib/ollama";
+import { checkBackend } from "@/lib/rag";
+import {
+  getStoredAiMode,
+  getStoredApiKey,
+  getStoredOllamaUrl,
+  setStoredAiMode,
+  setStoredApiKey,
+  setStoredOllamaUrl,
+  type AiMode,
+} from "@/lib/ollama";
 
 interface ProfileRow {
   id: string;
@@ -23,11 +33,14 @@ export default function Profile() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [savingOllama, setSavingOllama] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [aiMode, setAiMode] = useState<AiMode>("local");
   const [ollamaUrl, setOllamaUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
 
   const createdAtText = useMemo(() => {
     if (!user?.created_at) return "-";
@@ -35,7 +48,9 @@ export default function Profile() {
   }, [user?.created_at]);
 
   useEffect(() => {
+    setAiMode(getStoredAiMode());
     setOllamaUrl(getStoredOllamaUrl());
+    setApiKey(getStoredApiKey());
 
     const loadProfile = async () => {
       if (!user) {
@@ -125,18 +140,68 @@ export default function Profile() {
   const saveOllamaUrl = async () => {
     setSavingOllama(true);
     try {
-      const saved = setStoredOllamaUrl(ollamaUrl);
-      setOllamaUrl(saved);
+      const modeToSave: AiMode = aiMode;
+      const savedMode = setStoredAiMode(modeToSave);
+      const savedEndpoint = setStoredOllamaUrl(ollamaUrl);
+      const savedApiKey = modeToSave === "api-key" ? setStoredApiKey(apiKey) : setStoredApiKey("");
+
+      setAiMode(savedMode);
+      setOllamaUrl(savedEndpoint);
+      setApiKey(savedApiKey);
+
       toast({
         title: "AI endpoint saved",
-        description: saved
-          ? "AI features will now use your configured Ollama URL."
-          : "Custom Ollama URL cleared. App will use backend default.",
+        description:
+          savedMode === "local"
+            ? savedEndpoint
+              ? "Local model mode enabled with your configured endpoint."
+              : "Local model mode enabled. App will use backend default local endpoint."
+            : "API key mode enabled. AI calls will include your endpoint and key.",
       });
     } catch (e: any) {
       toast({ title: "Invalid URL", description: e.message, variant: "destructive" });
     } finally {
       setSavingOllama(false);
+    }
+  };
+
+  const testAiConnection = async () => {
+    setTestingConnection(true);
+    try {
+      const modeToTest: AiMode = aiMode;
+      const savedMode = setStoredAiMode(modeToTest);
+      const savedEndpoint = setStoredOllamaUrl(ollamaUrl);
+      const savedApiKey = modeToTest === "api-key" ? setStoredApiKey(apiKey) : setStoredApiKey("");
+
+      setAiMode(savedMode);
+      setOllamaUrl(savedEndpoint);
+      setApiKey(savedApiKey);
+
+      const ok = await checkBackend();
+      if (ok) {
+        toast({
+          title: "Connection successful",
+          description:
+            savedMode === "local"
+              ? "Local model endpoint is reachable."
+              : "Endpoint is reachable with current API key mode settings.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Connection failed",
+        description: "Could not reach the AI backend. Verify endpoint URL, key, and backend status.",
+        variant: "destructive",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Connection failed",
+        description: e?.message ?? "Could not validate AI connection.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -230,8 +295,21 @@ export default function Profile() {
           <h2 className="font-display text-lg font-semibold">AI Endpoint</h2>
         </div>
 
+        <div className="flex items-center justify-between rounded-md border p-3">
+          <div>
+            <p className="text-sm font-medium">Use local model</p>
+            <p className="text-xs text-muted-foreground">Enabled by default. Disable to use endpoint + API key mode.</p>
+          </div>
+          <Switch
+            checked={aiMode === "local"}
+            onCheckedChange={(checked) => setAiMode(checked ? "local" : "api-key")}
+            disabled={savingOllama}
+            aria-label="Toggle local model mode"
+          />
+        </div>
+
         <div className="space-y-2">
-          <Label htmlFor="ollamaUrl">Ollama URL (optional)</Label>
+          <Label htmlFor="ollamaUrl">AI endpoint URL (optional)</Label>
           <Input
             id="ollamaUrl"
             value={ollamaUrl}
@@ -240,15 +318,38 @@ export default function Profile() {
             disabled={savingOllama}
           />
           <p className="text-xs text-muted-foreground">
-            Set this to your own ngrok or Cloudflare tunnel URL that points to local Ollama port 11434.
-            Leave empty to use the backend default URL.
+            In local mode, this can point to your Ollama tunnel URL (for example ngrok/Cloudflare tunnel to port 11434).
+            In API key mode, this is the endpoint that will receive authenticated model requests.
           </p>
         </div>
 
-        <Button onClick={saveOllamaUrl} disabled={savingOllama} variant="secondary">
-          {savingOllama ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-          Save AI endpoint
-        </Button>
+        {aiMode === "api-key" && (
+          <div className="space-y-2">
+            <Label htmlFor="apiKey">API key</Label>
+            <Input
+              id="apiKey"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              disabled={savingOllama}
+            />
+            <p className="text-xs text-muted-foreground">
+              Your key is stored in browser local storage and sent in request headers only when local mode is disabled.
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={saveOllamaUrl} disabled={savingOllama || testingConnection} variant="secondary">
+            {savingOllama ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Save AI settings
+          </Button>
+          <Button onClick={testAiConnection} disabled={testingConnection || savingOllama} variant="outline">
+            {testingConnection ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Test connection
+          </Button>
+        </div>
       </Card>
     </div>
   );
