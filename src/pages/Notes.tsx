@@ -411,36 +411,6 @@ export default function Notes() {
               No notes yet. Create your first one!
             </p>
           )}
-              {audioUrl && (
-                <div className="mt-3 rounded-lg border border-border bg-background/60 p-3 space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    {audioStatus || "Audio is ready."}
-                  </div>
-                  <audio
-                    key={audioUrl}
-                    controls
-                    src={audioUrl}
-                    autoPlay
-                    className="w-full"
-                    onLoadedMetadata={(e) => {
-                      e.currentTarget.playbackRate = playbackSpeed;
-                    }}
-                    onPlay={(e) => {
-                      e.currentTarget.playbackRate = playbackSpeed;
-                      setSpeaking(true);
-                    }}
-                    onPause={() => setSpeaking(false)}
-                    onEnded={() => {
-                      setSpeaking(false);
-                      setAudioStatus("Playback finished.");
-                    }}
-                    onError={() => {
-                      setSpeaking(false);
-                      setAudioStatus("The browser could not play this audio file.");
-                    }}
-                  />
-                </div>
-              )}
           {visibleNotes.map((n) => (
             <button
               key={n.id}
@@ -571,6 +541,39 @@ export default function Notes() {
               )}
             </div>
 
+            {audioUrl && (
+              <div className="border-b border-border px-3 sm:px-4 py-3">
+                <div className="rounded-lg border border-border bg-background/60 p-3 space-y-2 max-w-full overflow-hidden">
+                  <div className="text-xs text-muted-foreground">
+                    {audioStatus || "Audio is ready."}
+                  </div>
+                  <audio
+                    key={audioUrl}
+                    controls
+                    src={audioUrl}
+                    autoPlay
+                    className="w-full max-w-full"
+                    onLoadedMetadata={(e) => {
+                      e.currentTarget.playbackRate = playbackSpeed;
+                    }}
+                    onPlay={(e) => {
+                      e.currentTarget.playbackRate = playbackSpeed;
+                      setSpeaking(true);
+                    }}
+                    onPause={() => setSpeaking(false)}
+                    onEnded={() => {
+                      setSpeaking(false);
+                      setAudioStatus("Playback finished.");
+                    }}
+                    onError={() => {
+                      setSpeaking(false);
+                      setAudioStatus("The browser could not play this audio file.");
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
             {summaryText && showRagPanel && (
               <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -649,6 +652,87 @@ export default function Notes() {
             )}
 
             {summaryText && !showRagPanel ? (
+              isMobile ? (
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSummaryText("");
+                            setSummaryAnalogy("");
+                            setSummaryBullets([]);
+                            setSummaryKeyTerms([]);
+                            setSummaryVisualFlow([]);
+                          }}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Card className="p-3 text-sm whitespace-pre-wrap leading-relaxed">
+                      {summaryText}
+                    </Card>
+
+                    {summaryMode === "eli5" && summaryAnalogy && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-1">Simple analogy</p>
+                        <p className="text-muted-foreground">{summaryAnalogy}</p>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryBullets.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-2">Key ideas</p>
+                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                          {summaryBullets.map((point, i) => (
+                            <li key={`${point}-${i}`}>{point}</li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryVisualFlow.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-3">Visual concept flow</p>
+                        <div className="space-y-2">
+                          {summaryVisualFlow.map((step, i) => (
+                            <div key={`${step.label}-${i}`} className="rounded-lg border border-border bg-background/70 p-3">
+                              <p className="font-medium text-foreground">{step.label}</p>
+                              {step.note && <p className="text-xs text-muted-foreground mt-1">{step.note}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryKeyTerms.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-2">Key terms</p>
+                        <div className="flex flex-wrap gap-2">
+                          {summaryKeyTerms.map((term, i) => (
+                            <span key={`${term}-${i}`} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">
+                              {term}
+                            </span>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+
+                  <Textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                    className="min-h-[45vh] resize-none border-0 focus-visible:ring-0 rounded-none p-4 text-sm leading-relaxed font-sans"
+                  />
+                </div>
+              ) : (
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0">
@@ -746,7 +830,61 @@ export default function Notes() {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
+              )
             ) : showRagPanel ? (
+              isMobile ? (
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <div className="border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={ragQuestion}
+                        onChange={(e) => setRagQuestion(e.target.value)}
+                        placeholder="Ask anything about this document…"
+                        onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && askRag()}
+                        className="flex-1"
+                      />
+                      <Button size="sm" onClick={askRag} disabled={ragLoading || !ragQuestion.trim()}>
+                        {ragLoading
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Send className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setRagOpen(false); setRagAnswer(""); setRagSources([]); }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {ragAnswer && (
+                      <Card className="p-3 text-sm space-y-2">
+                        <p className="font-medium text-primary">Answer</p>
+                        <p className="leading-relaxed whitespace-pre-wrap">{ragAnswer}</p>
+                        {ragSources.length > 0 && (
+                          <details className="text-xs text-muted-foreground">
+                            <summary className="cursor-pointer hover:text-foreground transition-colors">
+                              {ragSources.length} source chunk{ragSources.length > 1 ? "s" : ""}
+                            </summary>
+                            <div className="mt-2 space-y-2">
+                              {ragSources.map((s, i) => (
+                                <p key={i} className="border-l-2 border-border pl-2 line-clamp-3">{s}</p>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </Card>
+                    )}
+                  </div>
+
+                  <Textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                    className="min-h-[45vh] resize-none border-0 focus-visible:ring-0 rounded-none p-4 text-sm leading-relaxed font-sans"
+                  />
+                </div>
+              ) : (
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0">
@@ -812,6 +950,7 @@ export default function Notes() {
                   </ResizablePanel>
                 </ResizablePanelGroup>
               </div>
+              )
             ) : (
               <Textarea
                 value={content}
