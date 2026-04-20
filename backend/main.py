@@ -243,6 +243,28 @@ def get_upstream_ai_headers(request: Request) -> dict[str, str]:
     }
 
 
+def get_current_user_id(request: Request) -> str:
+    auth_header = (request.headers.get("authorization") or "").strip()
+    if not auth_header.lower().startswith("bearer "):
+        raise HTTPException(401, "Missing bearer token")
+
+    token = auth_header[7:].strip()
+    if not token:
+        raise HTTPException(401, "Missing bearer token")
+
+    try:
+        user_response = sb.auth.get_user(token)
+    except Exception as e:
+        raise HTTPException(401, f"Invalid session token: {e}") from e
+
+    user = getattr(user_response, "user", None)
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        raise HTTPException(401, "Unable to resolve current user")
+
+    return str(user_id)
+
+
 async def get_embedding(
     text: str,
     embed_model: str,
@@ -431,6 +453,18 @@ async def ai_health(request: Request):
         "mode": "api-key" if api_key_mode else "local",
         "endpoint": ai_url,
     }
+
+
+@app.delete("/account")
+async def delete_account(request: Request):
+    user_id = get_current_user_id(request)
+
+    try:
+        sb.auth.admin.delete_user(user_id)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to delete account: {e}") from e
+
+    return {"ok": True}
 
 
 @app.post("/upload")

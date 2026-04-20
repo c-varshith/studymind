@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { summarizeNote, ttsToBlob } from "@/lib/api";
 import { uploadPdf, queryRag } from "@/lib/rag";
 import { trackActivity } from "@/lib/activity";
+import { fetchNotesWithTagSupport, getErrorMessage, updateNoteWithSchemaFallback, type AppNote } from "@/lib/notes";
 import {
   Plus, Trash2, Volume2, Loader2,
   FileText, Upload, Send, BookOpen, X, ArrowRight,
@@ -17,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-interface Note { id: string; title: string; content: string; updated_at: string; }
+type Note = AppNote;
 
 type NoteSortMode = "recent" | "alpha-asc" | "alpha-desc";
 
@@ -31,6 +32,9 @@ type DocumentChunksLookup = {
 
 const TTS_PREVIEW_LIMIT = 12000;
 const TTS_SPEED_OPTIONS = [0.8, 1, 1.15, 1.3, 1.5];
+const INVISIBLE_RESIZE_HANDLE = "bg-transparent hover:bg-transparent";
+const INVISIBLE_HORIZONTAL_RESIZE_HANDLE = "w-1 cursor-col-resize bg-transparent hover:bg-transparent";
+const INVISIBLE_VERTICAL_RESIZE_HANDLE = "data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-transparent hover:bg-transparent";
 
 function buildPreviewText(text: string) {
   const trimmed = text.trim();
@@ -76,8 +80,11 @@ export default function Notes() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<NoteSortMode>("recent");
+  const [tagsSupported, setTagsSupported] = useState(true);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState("");
   const [saving, setSaving] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -108,20 +115,83 @@ export default function Notes() {
   const ttsAbortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const debounce = useRef<number>();
+  const suppressAutosaveRef = useRef(false);
 
   const load = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("notes")
-      .select("*")
-      .order("updated_at", { ascending: false });
-    if (error) {
-      toast({ title: "Failed to load notes", description: error.message, variant: "destructive" });
+    try {
+      const { notes: loadedNotes, tagsSupported: nextTagsSupported } = await fetchNotesWithTagSupport();
+      setTagsSupported(nextTagsSupported);
+      setNotes(loadedNotes);
+      if (!loadedNotes.length) {
+        suppressAutosaveRef.current = true;
+        setActiveId(null);
+        setTitle("");
+        setContent("");
+        setTags([]);
+        setNewTag("");
+        setHasChunks(false);
+        return;
+      }
+
+      if (!activeId) {
+        void selectNote(sortNotes(loadedNotes, sortMode)[0]);
+        return;
+      }
+
+      const activeNote = loadedNotes.find((note) => note.id === activeId);
+      if (!activeNote) {
+        void selectNote(sortNotes(loadedNotes, sortMode)[0]);
+      }
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, "Failed to load notes.");
+      toast({ title: "Failed to load notes", description: message, variant: "destructive" });
       return;
     }
-    const loadedNotes = (data as Note[]) ?? [];
-    setNotes(loadedNotes);
-    if (loadedNotes.length && !activeId) selectNote(sortNotes(loadedNotes, sortMode)[0]);
   }, [activeId, sortMode]);
+
+  const persistNote = useCallback(async ({
+    noteId,
+    nextTitle,
+    nextContent,
+    nextTags,
+  }: {
+    noteId: string;
+    nextTitle: string;
+    nextContent: string;
+    nextTags: string[];
+  }) => {
+    const result = await updateNoteWithSchemaFallback({
+      noteId,
+      title: nextTitle || "Untitled note",
+      content: nextContent,
+      tags: nextTags,
+      tagsSupported,
+    });
+
+    setTagsSupported(result.tagsSupported);
+    setNotes((prev) =>
+      sortNotes(
+        prev.map((note) =>
+          note.id === noteId
+            ? {
+                ...note,
+                title: nextTitle || "Untitled note",
+                content: nextContent,
+                tags: result.tagsSupported ? nextTags : [],
+                updated_at: new Date().toISOString(),
+              }
+            : note
+        ),
+        sortMode,
+      )
+    );
+
+    if (!result.tagsSupported && nextTags.length > 0) {
+      setTags([]);
+    }
+
+    return result;
+  }, [sortMode, tagsSupported]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => {
@@ -138,9 +208,12 @@ export default function Notes() {
   }, [playbackSpeed]);
 
   const selectNote = async (n: Note) => {
+    suppressAutosaveRef.current = true;
     setActiveId(n.id);
     setTitle(n.title);
     setContent(n.content);
+    setTags(n.tags || []);
+    setNewTag("");
     setRagOpen(false);
     setRagAnswer("");
     setRagSources([]);
@@ -157,6 +230,9 @@ export default function Notes() {
       .select("id", { count: "exact", head: true })
       .eq("note_id", n.id);
     setHasChunks((count ?? 0) > 0);
+    window.setTimeout(() => {
+      suppressAutosaveRef.current = false;
+    }, 0);
   };
 
   const newNote = async () => {
@@ -184,21 +260,30 @@ export default function Notes() {
   // autosave
   useEffect(() => {
     if (!activeId || !user?.id) return;
+    if (suppressAutosaveRef.current) {
+      suppressAutosaveRef.current = false;
+      return;
+    }
     window.clearTimeout(debounce.current);
     debounce.current = window.setTimeout(async () => {
-      setSaving(true);
-      await supabase
-        .from("notes")
-        .update({ title: title || "Untitled note", content })
-        .eq("id", activeId);
-      await trackActivity(user.id);
-      setSaving(false);
-      setNotes((prev) =>
-        prev.map((n) => n.id === activeId ? { ...n, title: title || "Untitled note", content } : n)
-      );
+      try {
+        setSaving(true);
+        await persistNote({
+          noteId: activeId,
+          nextTitle: title || "Untitled note",
+          nextContent: content,
+          nextTags: tags,
+        });
+        await trackActivity(user.id);
+      } catch (error: unknown) {
+        const message = getErrorMessage(error, "Could not save the note.");
+        toast({ title: "Save failed", description: message, variant: "destructive" });
+      } finally {
+        setSaving(false);
+      }
     }, 600);
     return () => window.clearTimeout(debounce.current);
-  }, [title, content, activeId, user?.id]);
+  }, [title, content, tags, activeId, user?.id, persistNote]);
 
   const speak = async () => {
     if (!content.trim()) return;
@@ -300,6 +385,9 @@ export default function Notes() {
 
       // Fill note title + content from PDF
       const pdfTitle = file.name.replace(/\.pdf$/i, "");
+      window.clearTimeout(debounce.current);
+      setSaving(true);
+      suppressAutosaveRef.current = true;
       setTitle(pdfTitle);
       setContent(text);
       setHasChunks(true);
@@ -308,15 +396,23 @@ export default function Notes() {
       setSummaryBullets([]);
       setSummaryKeyTerms([]);
       setSummaryVisualFlow([]);
+      await persistNote({
+        noteId: activeId,
+        nextTitle: pdfTitle,
+        nextContent: text,
+        nextTags: tags,
+      });
+      await trackActivity(user.id);
 
       toast({
         title: "PDF processed",
-        description: `${chunks} chunks embedded and ready for questions.`,
+        description: `${chunks} chunks embedded and note text saved for future use.`,
       });
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Upload failed.";
+      const message = getErrorMessage(error, "Upload failed.");
       toast({ title: "Upload failed", description: message, variant: "destructive" });
     } finally {
+      setSaving(false);
       setUploading(false);
       setUploadMsg("");
     }
@@ -382,9 +478,12 @@ export default function Notes() {
   const showRagPanel = ragOpen && hasChunks;
 
   return (
-    <div className="min-h-full lg:h-full flex flex-col lg:flex-row">
+    <div className="min-h-full lg:h-full">
+      {isMobile ? (
+        // Mobile: Stacked layout
+        <div className="flex flex-col min-h-full">
       {/* ── Sidebar ── */}
-      <div className="w-full lg:w-72 border-b lg:border-b-0 lg:border-r border-border bg-card/50 flex flex-col lg:h-full">
+      <div className="w-full border-b border-border bg-card/50 flex flex-col">
         <div className="p-4 border-b border-border space-y-3">
           <Button
             onClick={newNote}
@@ -405,7 +504,7 @@ export default function Notes() {
             </select>
           </div>
         </div>
-        <div className="flex-1 overflow-x-auto lg:overflow-auto p-2 flex lg:block gap-2 lg:gap-0 lg:space-y-1">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 space-y-1 scrollbar-hide">
           {notes.length === 0 && (
             <p className="text-center text-sm text-muted-foreground p-6">
               No notes yet. Create your first one!
@@ -416,7 +515,7 @@ export default function Notes() {
               key={n.id}
               onClick={() => selectNote(n)}
               className={cn(
-                "w-full lg:w-auto min-w-[220px] lg:min-w-0 text-left p-3 rounded-lg group transition-colors",
+                "w-full text-left p-3 rounded-lg group transition-colors",
                 activeId === n.id ? "bg-secondary" : "hover:bg-secondary/60",
               )}
             >
@@ -431,7 +530,7 @@ export default function Notes() {
                   role="button"
                   aria-label="Delete note"
                   onClick={(e) => { e.stopPropagation(); remove(n.id); }}
-                  className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 cursor-pointer"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </span>
@@ -441,8 +540,8 @@ export default function Notes() {
         </div>
       </div>
 
-      {/* ── Editor ── */}
-      <div className="flex-1 flex flex-col min-w-0">
+        {/* ── Editor ── */}
+        <div className="flex-1 flex flex-col min-w-0">
         {activeId ? (
           <>
             {/* Title bar */}
@@ -457,6 +556,38 @@ export default function Notes() {
                 {saving ? "Saving…" : "Saved"}
               </div>
             </div>
+
+            {tagsSupported && (
+              <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {tags.map((tag) => (
+                    <div key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                      {tag}
+                      <button
+                        onClick={() => setTags(tags.filter((t) => t !== tag))}
+                        className="hover:opacity-70 transition-opacity ml-1"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 max-w-sm">
+                  <Input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value.trim())}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newTag && !tags.includes(newTag)) {
+                        setTags([...tags, newTag]);
+                        setNewTag("");
+                      }
+                    }}
+                    placeholder="Add tag (press Enter)"
+                    className="h-8 text-xs"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Toolbar */}
             <div className="p-3 sm:p-4 border-b border-border flex flex-wrap gap-2">
@@ -735,8 +866,8 @@ export default function Notes() {
               ) : (
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
-                  <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0">
-                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3 overflow-auto">
+                  <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0 overflow-hidden">
+                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
                         <div className="flex items-center gap-2">
@@ -813,9 +944,8 @@ export default function Notes() {
                   </ResizablePanel>
 
                   <ResizableHandle
-                    withHandle
                     className={cn(
-                      "data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors",
+                      INVISIBLE_VERTICAL_RESIZE_HANDLE,
                       isMobile && "hidden",
                     )}
                   />
@@ -887,8 +1017,8 @@ export default function Notes() {
               ) : (
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
-                  <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0">
-                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3 overflow-auto">
+                  <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0 overflow-hidden">
+                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
                       <div className="flex items-center gap-2">
                         <Input
                           value={ragQuestion}
@@ -933,9 +1063,8 @@ export default function Notes() {
                   </ResizablePanel>
 
                   <ResizableHandle
-                    withHandle
                     className={cn(
-                      "data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors",
+                      INVISIBLE_VERTICAL_RESIZE_HANDLE,
                       isMobile && "hidden",
                     )}
                   />
@@ -975,6 +1104,496 @@ export default function Notes() {
           </div>
         )}
       </div>
+        </div>
+      ) : (
+        // Desktop: Resizable horizontal layout
+        <ResizablePanelGroup direction="horizontal" className="w-full h-full">
+          {/* ── Sidebar Panel ── */}
+          <ResizablePanel defaultSize={22} minSize={18} maxSize={35} className="min-w-0">
+            <div className="w-full h-full bg-card/50 flex flex-col border-r border-border">
+              <div className="p-4 border-b border-border space-y-3">
+                <Button
+                  onClick={newNote}
+                  className="w-full bg-gradient-primary text-primary-foreground hover:opacity-90 shadow-soft"
+                >
+                  <Plus className="h-4 w-4 mr-2" /> New note
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">Sort</span>
+                  <select
+                    value={sortMode}
+                    onChange={(e) => setSortMode(e.target.value as NoteSortMode)}
+                    className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+                  >
+                    <option value="recent">Most recent</option>
+                    <option value="alpha-asc">A-Z</option>
+                    <option value="alpha-desc">Z-A</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-hide">
+                {notes.length === 0 && (
+                  <p className="text-center text-sm text-muted-foreground p-6">
+                    No notes yet. Create your first one!
+                  </p>
+                )}
+                {visibleNotes.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => selectNote(n)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg group transition-colors",
+                      activeId === n.id ? "bg-secondary" : "hover:bg-secondary/60",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">{n.title || "Untitled"}</div>
+                        <div className="text-xs text-muted-foreground truncate mt-0.5">
+                          {n.content.slice(0, 60) || "Empty"}
+                        </div>
+                      </div>
+                      <span
+                        role="button"
+                        aria-label="Delete note"
+                        onClick={(e) => { e.stopPropagation(); remove(n.id); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle className={INVISIBLE_HORIZONTAL_RESIZE_HANDLE} />
+
+          {/* ── Editor Panel ── */}
+          <ResizablePanel defaultSize={78} minSize={65} className="min-w-0 flex flex-col">
+            {activeId ? (
+              <>
+                {/* Title bar */}
+                <div className="border-b border-border p-3 sm:p-4 flex items-center gap-2">
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Note title"
+                    className="border-0 text-base sm:text-lg font-display font-semibold focus-visible:ring-0 px-0"
+                  />
+                  <div className="text-xs text-muted-foreground whitespace-nowrap">
+                    {saving ? "Saving…" : "Saved"}
+                  </div>
+                </div>
+
+                {tagsSupported && (
+                  <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {tags.map((tag) => (
+                        <div key={tag} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium">
+                          {tag}
+                          <button
+                            onClick={() => setTags(tags.filter((t) => t !== tag))}
+                            className="hover:opacity-70 transition-opacity ml-1"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 max-w-sm">
+                      <Input
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value.trim())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newTag && !tags.includes(newTag)) {
+                            setTags([...tags, newTag]);
+                            setNewTag("");
+                          }
+                        }}
+                        placeholder="Add tag (press Enter)"
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Toolbar */}
+                <div className="p-3 sm:p-4 border-b border-border flex flex-wrap gap-2">
+                  {/* TTS */}
+                  {!speaking ? (
+                    <Button size="sm" variant="secondary" onClick={speak} disabled={!content.trim()}>
+                      <Volume2 className="h-4 w-4 mr-2" /> Listen
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="destructive" onClick={stopSpeak}>
+                      <X className="h-4 w-4 mr-2" /> Stop
+                    </Button>
+                  )}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Speed</span>
+                    <select
+                      value={playbackSpeed}
+                      onChange={(e) => setPlaybackSpeed(Number(e.target.value))}
+                      className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+                    >
+                      {TTS_SPEED_OPTIONS.map((speed) => (
+                        <option key={speed} value={speed}>
+                          {speed.toFixed(2)}x
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* PDF upload */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handlePdfSelect}
+                  />
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <Upload className="h-4 w-4 mr-2" />}
+                    {uploading ? uploadMsg || "Processing…" : "Upload PDF"}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={summarizeCurrentNote}
+                    disabled={summarizing || !content.trim()}
+                  >
+                    {summarizing
+                      ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      : <FileText className="h-4 w-4 mr-2" />}
+                    {summarizing ? "Summarizing…" : "Summarize PDF"}
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    variant={eli5Mode ? "default" : "secondary"}
+                    onClick={() => setEli5Mode((v) => !v)}
+                    className={eli5Mode ? "bg-gradient-primary text-primary-foreground" : ""}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Simplified Analysis {eli5Mode ? "ON" : "OFF"}
+                  </Button>
+
+                  {/* Ask about this doc — only shown once PDF is embedded */}
+                  {hasChunks && (
+                    <Button
+                      size="sm"
+                      variant={ragOpen ? "default" : "secondary"}
+                      onClick={() => setRagOpen((o) => !o)}
+                      className={ragOpen ? "bg-gradient-primary text-primary-foreground" : ""}
+                    >
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Ask this doc
+                    </Button>
+                  )}
+                </div>
+
+                {audioUrl && (
+                  <div className="border-b border-border px-3 sm:px-4 py-3">
+                    <div className="rounded-lg border border-border bg-background/60 p-3 space-y-2 max-w-full overflow-hidden">
+                      <div className="text-xs text-muted-foreground">
+                        {audioStatus || "Audio is ready."}
+                      </div>
+                      <audio
+                        key={audioUrl}
+                        controls
+                        src={audioUrl}
+                        autoPlay
+                        className="w-full max-w-full"
+                        onLoadedMetadata={(e) => {
+                          e.currentTarget.playbackRate = playbackSpeed;
+                        }}
+                        onPlay={(e) => {
+                          e.currentTarget.playbackRate = playbackSpeed;
+                          setSpeaking(true);
+                        }}
+                        onPause={() => setSpeaking(false)}
+                        onEnded={() => {
+                          setSpeaking(false);
+                          setAudioStatus("Playback finished.");
+                        }}
+                        onError={() => {
+                          setSpeaking(false);
+                          setAudioStatus("The browser could not play this audio file.");
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {summaryText && showRagPanel && (
+                  <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setSummaryText("");
+                            setSummaryAnalogy("");
+                            setSummaryBullets([]);
+                            setSummaryKeyTerms([]);
+                            setSummaryVisualFlow([]);
+                          }}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    </div>
+                    <Card className="p-3 text-sm whitespace-pre-wrap leading-relaxed">
+                      {summaryText}
+                    </Card>
+
+                    {summaryMode === "eli5" && summaryAnalogy && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-1">Simple analogy</p>
+                        <p className="text-muted-foreground">{summaryAnalogy}</p>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryBullets.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-2">Key ideas</p>
+                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                          {summaryBullets.map((point, i) => (
+                            <li key={`${point}-${i}`}>{point}</li>
+                          ))}
+                        </ul>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryVisualFlow.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-3">Visual concept flow</p>
+                        <div className="overflow-x-auto">
+                          <div className="flex items-stretch gap-2 min-w-max">
+                            {summaryVisualFlow.map((step, i) => (
+                              <div key={`${step.label}-${i}`} className="flex items-center gap-2">
+                                <div className="w-56 rounded-lg border border-border bg-background/70 p-3">
+                                  <p className="font-medium text-foreground">{step.label}</p>
+                                  {step.note && <p className="text-xs text-muted-foreground mt-1">{step.note}</p>}
+                                </div>
+                                {i < summaryVisualFlow.length - 1 && <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+
+                    {summaryMode === "eli5" && summaryKeyTerms.length > 0 && (
+                      <Card className="p-3 text-sm">
+                        <p className="font-medium text-primary mb-2">Key terms</p>
+                        <div className="flex flex-wrap gap-2">
+                          {summaryKeyTerms.map((term, i) => (
+                            <span key={`${term}-${i}`} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">
+                              {term}
+                            </span>
+                          ))}
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {summaryText && !showRagPanel ? (
+                  <div className="flex-1 min-h-0">
+                    <ResizablePanelGroup direction="vertical" className="h-full">
+                      <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0 overflow-hidden">
+                        <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
+                            <div className="flex items-center gap-2">
+                              <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSummaryText("");
+                                  setSummaryAnalogy("");
+                                  setSummaryBullets([]);
+                                  setSummaryKeyTerms([]);
+                                  setSummaryVisualFlow([]);
+                                }}
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          </div>
+                          <Card className="p-3 text-sm whitespace-pre-wrap leading-relaxed">
+                            {summaryText}
+                          </Card>
+
+                          {summaryMode === "eli5" && summaryAnalogy && (
+                            <Card className="p-3 text-sm">
+                              <p className="font-medium text-primary mb-1">Simple analogy</p>
+                              <p className="text-muted-foreground">{summaryAnalogy}</p>
+                            </Card>
+                          )}
+
+                          {summaryMode === "eli5" && summaryBullets.length > 0 && (
+                            <Card className="p-3 text-sm">
+                              <p className="font-medium text-primary mb-2">Key ideas</p>
+                              <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                                {summaryBullets.map((point, i) => (
+                                  <li key={`${point}-${i}`}>{point}</li>
+                                ))}
+                              </ul>
+                            </Card>
+                          )}
+
+                          {summaryMode === "eli5" && summaryVisualFlow.length > 0 && (
+                            <Card className="p-3 text-sm">
+                              <p className="font-medium text-primary mb-3">Visual concept flow</p>
+                              <div className="overflow-x-auto">
+                                <div className="flex items-stretch gap-2 min-w-max">
+                                  {summaryVisualFlow.map((step, i) => (
+                                    <div key={`${step.label}-${i}`} className="flex items-center gap-2">
+                                      <div className="w-56 rounded-lg border border-border bg-background/70 p-3">
+                                        <p className="font-medium text-foreground">{step.label}</p>
+                                        {step.note && <p className="text-xs text-muted-foreground mt-1">{step.note}</p>}
+                                      </div>
+                                      {i < summaryVisualFlow.length - 1 && <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </Card>
+                          )}
+
+                          {summaryMode === "eli5" && summaryKeyTerms.length > 0 && (
+                            <Card className="p-3 text-sm">
+                              <p className="font-medium text-primary mb-2">Key terms</p>
+                              <div className="flex flex-wrap gap-2">
+                                {summaryKeyTerms.map((term, i) => (
+                                  <span key={`${term}-${i}`} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">
+                                    {term}
+                                  </span>
+                                ))}
+                              </div>
+                            </Card>
+                          )}
+                        </div>
+                      </ResizablePanel>
+
+                      <ResizableHandle
+                        className={cn(INVISIBLE_VERTICAL_RESIZE_HANDLE)}
+                      />
+
+                      <ResizablePanel minSize={30} className="min-h-0">
+                        <Textarea
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                          className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
+                ) : showRagPanel ? (
+                  <div className="flex-1 min-h-0">
+                    <ResizablePanelGroup direction="vertical" className="h-full">
+                      <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0 overflow-hidden">
+                        <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={ragQuestion}
+                              onChange={(e) => setRagQuestion(e.target.value)}
+                              placeholder="Ask anything about this document…"
+                              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && askRag()}
+                              className="flex-1"
+                            />
+                            <Button size="sm" onClick={askRag} disabled={ragLoading || !ragQuestion.trim()}>
+                              {ragLoading
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Send className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => { setRagOpen(false); setRagAnswer(""); setRagSources([]); }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          {ragAnswer && (
+                            <Card className="p-3 text-sm space-y-2">
+                              <p className="font-medium text-primary">Answer</p>
+                              <p className="leading-relaxed whitespace-pre-wrap">{ragAnswer}</p>
+                              {ragSources.length > 0 && (
+                                <details className="text-xs text-muted-foreground">
+                                  <summary className="cursor-pointer hover:text-foreground transition-colors">
+                                    {ragSources.length} source chunk{ragSources.length > 1 ? "s" : ""}
+                                  </summary>
+                                  <div className="mt-2 space-y-2">
+                                    {ragSources.map((s, i) => (
+                                      <p key={i} className="border-l-2 border-border pl-2 line-clamp-3">{s}</p>
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
+                            </Card>
+                          )}
+                        </div>
+                      </ResizablePanel>
+
+                      <ResizableHandle
+                        className={cn(INVISIBLE_VERTICAL_RESIZE_HANDLE)}
+                      />
+
+                      <ResizablePanel minSize={30} className="min-h-0">
+                        <Textarea
+                          value={content}
+                          onChange={(e) => setContent(e.target.value)}
+                          placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                          className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
+                        />
+                      </ResizablePanel>
+                    </ResizablePanelGroup>
+                  </div>
+                ) : (
+                  <Textarea
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
+                    className="flex-1 resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
+                  />
+                )}
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-center p-10">
+                <div>
+                  <div className="h-16 w-16 mx-auto rounded-2xl bg-secondary flex items-center justify-center mb-4">
+                    <FileText className="h-8 w-8 text-primary" />
+                  </div>
+                  <h2 className="font-display text-xl font-semibold">No note selected</h2>
+                  <p className="text-muted-foreground mt-2">Create a note or upload a PDF to get started.</p>
+                  <Button onClick={newNote} className="mt-4 bg-gradient-primary text-primary-foreground">
+                    <Plus className="h-4 w-4 mr-2" /> New note
+                  </Button>
+                </div>
+              </div>
+            )}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
     </div>
   );
 }

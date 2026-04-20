@@ -71,6 +71,7 @@ CREATE TABLE public.notes (
   user_id          UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   title            TEXT        NOT NULL,
   content          TEXT        NOT NULL DEFAULT '',
+  tags             TEXT[]      DEFAULT '{}',
   source_file_path TEXT,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()

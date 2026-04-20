@@ -170,3 +170,33 @@ export async function summarizeNote(content: string, maxPoints = 8, mode: "stand
     visual_flow: { label: string; note: string }[];
   };
 }
+
+export async function deleteCurrentAccount() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new Error("No active session found.");
+  }
+
+  const resp = await fetch(`${RAG_BACKEND}/account`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!resp.ok) {
+    const raw = await resp.text().catch(() => "");
+    let parsed: JsonRecord = {};
+    try {
+      parsed = raw ? (JSON.parse(raw) as JsonRecord) : {};
+    } catch {
+      parsed = {};
+    }
+    const message = typeof parsed.detail === "string"
+      ? parsed.detail
+      : raw || `Account deletion failed (${resp.status})`;
+    throw new Error(message);
+  }
+}

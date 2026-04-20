@@ -14,8 +14,11 @@ const nav = [
 ];
 
 const mobileTabs = [
-  ...nav,
-  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/app", label: "Notes", icon: FileText, end: true },
+  { to: "/app/chat", label: "Tutor", icon: MessageSquare },
+  { to: "/app/quiz", label: "Quiz", icon: Sparkles },
+  { to: "/app/flashcards", label: "Cards", icon: Layers },
+  { to: "/app/dashboard", label: "Stats", icon: LayoutDashboard },
 ];
 
 export default function AppShell() {
@@ -148,28 +151,28 @@ export default function AppShell() {
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>
-        <main className="flex-1 overflow-auto pb-20 md:pb-0">
+        <main className="flex-1 overflow-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
           <Outlet />
         </main>
 
         <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-background/95 backdrop-blur px-2 pt-1 pb-[calc(0.4rem+env(safe-area-inset-bottom))]">
           <ul className="grid grid-cols-5 gap-1">
             {mobileTabs.map((item) => (
-              <li key={item.to}>
+              <li key={item.to} className="min-w-0">
                 <NavLink
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
                     cn(
-                      "flex flex-col items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-medium transition-colors",
+                      "flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-medium transition-colors",
                       isActive
                         ? "bg-secondary text-foreground"
                         : "text-muted-foreground",
                     )
                   }
                 >
-                  <item.icon className="h-4 w-4" />
-                  <span className="leading-none">{item.label}</span>
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  <span className="max-w-full truncate leading-none">{item.label}</span>
                 </NavLink>
               </li>
             ))}

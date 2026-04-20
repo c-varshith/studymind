@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Activity, BookOpen, FileText, Flame, Layers, Sparkles } from "lucide-react";
+import { fetchNotesWithTagSupport } from "@/lib/notes";
+import { Activity, BookOpen, FileText, Flame, Layers, Sparkles, Clock, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface NoteLite {
   id: string;
   title: string;
   updated_at: string;
+  content?: string;
+  tags?: string[];
 }
 
 interface DashboardStats {
@@ -20,6 +25,7 @@ interface DashboardStats {
   uploadedDocTitles: string[];
   weeklyActiveDays: number;
   overallProgress: number;
+  recentNotes: NoteLite[];
 }
 
 const emptyStats: DashboardStats = {
@@ -31,6 +37,7 @@ const emptyStats: DashboardStats = {
   uploadedDocTitles: [],
   weeklyActiveDays: 0,
   overallProgress: 0,
+  recentNotes: [],
 };
 
 function getDashboardCacheKey(userId: string) {
@@ -97,6 +104,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>(emptyStats);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [allNotes, setAllNotes] = useState<NoteLite[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -111,12 +120,8 @@ export default function Dashboard() {
         setStats(cachedStats);
       }
 
-      const [notesRes, quizzesRes, decksRes, cardsRes, chunksRes, activityRes] = await Promise.all([
-        supabase
-          .from("notes")
-          .select("id,title,updated_at")
-          .eq("user_id", user.id)
-          .order("updated_at", { ascending: false }),
+      const [notesResult, quizzesRes, decksRes, cardsRes, chunksRes, activityRes] = await Promise.all([
+        fetchNotesWithTagSupport(),
         supabase
           .from("quizzes")
           .select("id,updated_at")
@@ -140,12 +145,15 @@ export default function Dashboard() {
           .order("activity_day", { ascending: false }),
       ]);
 
-      const notes = (notesRes.data ?? []) as NoteLite[];
+      const notes = notesResult.notes as NoteLite[];
       const quizzes = quizzesRes.data ?? [];
       const decks = decksRes.data ?? [];
       const cards = cardsRes.data ?? [];
       const chunks = (chunksRes.data ?? []) as Array<{ note_id: string }>;
       const activity = (activityRes.data ?? []) as Array<{ activity_day: string }>;
+
+      // Save all notes for search
+      setAllNotes(notes);
 
       // Use activity table for streak and weekly activity
       const activityDays = activity.map((a) => new Date(a.activity_day));
@@ -174,6 +182,7 @@ export default function Dashboard() {
         uploadedDocTitles,
         weeklyActiveDays,
         overallProgress,
+        recentNotes: notes.slice(0, 5),
       };
 
       setStats(nextStats);
@@ -188,6 +197,17 @@ export default function Dashboard() {
   const quizzesProgressPct = useMemo(() => Math.min(Math.round((stats.quizzesCount / 5) * 100), 100), [stats.quizzesCount]);
   const decksProgressPct = useMemo(() => Math.min(Math.round((stats.decksCount / 3) * 100), 100), [stats.decksCount]);
 
+  const filteredNotes = useMemo(() => {
+    if (!searchQuery.trim()) return stats.recentNotes;
+    const query = searchQuery.toLowerCase();
+    return allNotes.filter((note) => {
+      const titleMatch = (note.title || "").toLowerCase().includes(query);
+      const contentMatch = (note.content || "").toLowerCase().includes(query);
+      const tagsMatch = (note.tags || []).some((tag) => tag.toLowerCase().includes(query));
+      return titleMatch || contentMatch || tagsMatch;
+    }).slice(0, 10);
+  }, [searchQuery, allNotes, stats.recentNotes]);
+
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <header>
@@ -195,7 +215,57 @@ export default function Dashboard() {
         <p className="text-sm text-muted-foreground">Track your learning momentum and key study progress in one place.</p>
       </header>
 
-      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="text"
+          placeholder="Search notes by title, content, or tags..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="pl-10 h-10"
+        />
+      </div>
+
+      {/* Search results or dashboard */}
+      {searchQuery.trim() ? (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-muted-foreground">Search Results ({filteredNotes.length})</p>
+          {filteredNotes.length === 0 ? (
+            <Card className="p-6 text-center">
+              <p className="text-muted-foreground">No notes found matching your search.</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {filteredNotes.map((note) => (
+                <Card key={note.id} className="p-4 hover:bg-secondary/40 transition-colors">
+                  <h3 className="font-medium break-words">{note.title || "Untitled"}</h3>
+                  <p className="text-xs text-muted-foreground line-clamp-2 mt-1 break-words">
+                    {note.content?.slice(0, 100) || "No content"}
+                  </p>
+                  {note.tags && note.tags.length > 0 && (
+                    <div className="flex gap-1 flex-wrap mt-2">
+                      {note.tags.slice(0, 3).map((tag) => (
+                        <span key={tag} className="inline-block px-2 py-0.5 rounded text-xs bg-primary/10 text-primary">
+                          {tag}
+                        </span>
+                      ))}
+                      {note.tags.length > 3 && (
+                        <span className="text-xs text-muted-foreground">+{note.tags.length - 3} more</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {new Date(note.updated_at).toLocaleDateString()}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-4 space-y-1">
           <div className="flex items-center gap-2 text-muted-foreground text-sm"><Flame className="h-4 w-4" /> Streak</div>
           <p className="text-2xl font-bold">{loading ? "-" : `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"}`}</p>
@@ -266,7 +336,7 @@ export default function Dashboard() {
           ) : (
             <ul className="space-y-2">
               {stats.uploadedDocTitles.map((title, idx) => (
-                <li key={`${title}-${idx}`} className="text-sm rounded-md border border-border px-3 py-2 bg-background/60 truncate">
+                <li key={`${title}-${idx}`} className="text-sm rounded-md border border-border px-3 py-2 bg-background/60 break-words">
                   {title}
                 </li>
               ))}
@@ -281,6 +351,49 @@ export default function Dashboard() {
           <p className="font-semibold">{loading ? "-" : `${stats.weeklyActiveDays} active day${stats.weeklyActiveDays === 1 ? "" : "s"} in the last 7 days`}</p>
         </div>
       </Card>
+
+      {/* Last Activity section */}
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center gap-2 text-base font-semibold">
+          <Clock className="h-4 w-4 text-primary" /> Last Activity
+        </div>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading activity...</p>
+        ) : stats.recentNotes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No notes yet. Start creating one!</p>
+        ) : (
+          <ul className="space-y-2">
+            {stats.recentNotes.map((note) => (
+              <li key={note.id} className="text-sm rounded-md border border-border px-3 py-2 bg-background/60">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium break-words">{note.title || "Untitled"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(note.updated_at).toLocaleDateString(undefined, { 
+                        month: 'short', 
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                  </div>
+                  {note.tags && note.tags.length > 0 && (
+                    <div className="flex gap-1 flex-wrap sm:justify-end">
+                      {note.tags.slice(0, 2).map((tag) => (
+                        <span key={tag} className="inline-block px-1.5 py-0.5 rounded text-xs bg-primary/10 text-primary whitespace-nowrap">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      </>
+      )}
     </div>
   );
 }

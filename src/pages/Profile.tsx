@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -7,8 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Save, Shield, UserCircle2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, Save, Shield, UserCircle2, Trash2 } from "lucide-react";
 import { checkBackend } from "@/lib/rag";
+import { deleteCurrentAccount } from "@/lib/api";
 import {
   getStoredAiMode,
   getStoredApiKey,
@@ -32,12 +43,15 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [profileLoading, setProfileLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [savingOllama, setSavingOllama] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const [displayName, setDisplayName] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -209,6 +223,34 @@ export default function Profile() {
     }
   };
 
+  const deleteAccount = async () => {
+    if (!user) return;
+    setDeletingAccount(true);
+    try {
+      await deleteCurrentAccount();
+
+      setStoredApiKey("");
+      setStoredOllamaUrl("");
+      setStoredAiMode("local");
+
+      toast({
+        title: "Account deleted",
+        description: "Your account and all associated data have been permanently deleted.",
+      });
+
+      navigate("/");
+    } catch (e: unknown) {
+      toast({
+        title: "Deletion failed",
+        description: errorMessage(e, "Could not delete your account. Your data is still safe. Please try again or contact support."),
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
   if (!user) {
     return (
       <div className="p-4 sm:p-6 max-w-4xl mx-auto">
@@ -355,6 +397,59 @@ export default function Profile() {
           </Button>
         </div>
       </Card>
+
+      {/* Delete Account section */}
+      <Card className="p-4 sm:p-6 space-y-4 border-destructive/30 bg-destructive/5">
+        <div className="flex items-center gap-2">
+          <Trash2 className="h-5 w-5 text-destructive" />
+          <h2 className="font-display text-lg font-semibold text-destructive">Danger Zone</h2>
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Permanently delete your account and all associated data. This action cannot be undone.
+        </p>
+
+        <Button 
+          onClick={() => setShowDeleteDialog(true)} 
+          disabled={deletingAccount}
+          variant="destructive"
+          className="w-full sm:w-auto"
+        >
+          {deletingAccount ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+          Delete my account
+        </Button>
+      </Card>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete your account and all your data including:
+              <ul className="mt-3 space-y-1 text-sm text-foreground font-medium">
+                <li>• All notes and tags</li>
+                <li>• All quizzes and results</li>
+                <li>• All flashcard decks</li>
+                <li>• All uploaded documents</li>
+                <li>• All chat conversations</li>
+              </ul>
+              <p className="mt-3">This action cannot be undone. Are you absolutely sure?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex gap-2">
+            <AlertDialogCancel disabled={deletingAccount}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteAccount}
+              disabled={deletingAccount}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deletingAccount ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Delete Account
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

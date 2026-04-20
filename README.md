@@ -11,7 +11,7 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 ## ✨ Features
 
 - 📄 **PDF Upload & Embedding** — Upload notes and have them chunked + embedded into a vector database
-- 💬 **RAG Chat** — Ask questions about your uploaded notes with context-aware answers
+- 💬 **RAG Chat + Tutor History** — Ask questions about your uploaded notes with context-aware answers and reopen saved tutor conversations
 - 🧪 **Quiz Generation** — Auto-generate multiple choice quizzes from your notes
 - 🃏 **Flashcard Generation** — Create study flashcards instantly
 - 📝 **Summarization** — Get concise summaries of your notes
@@ -35,6 +35,7 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
            │  pgvector)    │    └──────────┬────────┘  │ machine)    │
            └───────────────┘               │           └──────▲──────┘
                                            └──────────────────┘
+```
 
 ## AI Connection Modes
 
@@ -160,8 +161,7 @@ studymind/
 ├── backend/                      # FastAPI backend
 │   ├── main.py                   # All API routes
 │   ├── requirements.txt          # Python dependencies
-│   ├── models/piper/             # Local TTS model (Piper ONNX)
-│   └── scripts/                  # setup_piper_tts.sh
+│   └── scripts/                  # Optional local TTS helper scripts
 │
 ├── supabase/
 │   ├── functions/                # Edge functions
@@ -223,7 +223,7 @@ supabase db push
 **Option B — SQL Editor (manual)**
 
 1. Open your Supabase project → **SQL Editor**.
-2. Copy the contents of `supabase/migrations/20260416182031_*.sql` and paste it into the editor.
+2. Copy the contents of `supabase/migrations/db_queries.sql` and paste it into the editor.
 3. Click **Run**.
 
 This migration creates the following schema:
@@ -354,6 +354,7 @@ Copy the `https://xxxx-xxxx.ngrok-free.dev` URL and set it in **Profile -> AI En
 |--------|----------|-------------|
 | GET | `/health` | Health check |
 | GET | `/ai-health` | Validates configured upstream AI endpoint (mode-aware) |
+| DELETE | `/account` | Deletes the currently authenticated user's account |
 | POST | `/upload` | Upload and embed a PDF |
 | POST | `/query` | RAG query against a note |
 | POST | `/quiz-generate` | Generate a quiz from a note |
@@ -383,6 +384,10 @@ Full interactive docs: `https://your-backend.onrender.com/docs`
 | `API_FLASHCARD_MODEL` | API-key mode flashcard model (OpenAI-compatible provider) |
 | `API_EMBED_MODEL` | API-key mode embedding model (OpenAI-compatible provider) |
 | `API_EMBED_DIMENSIONS` | Optional embedding size override for API-key mode (set `768` to match this project's current pgvector schema). |
+| `TTS_ENGINE` | Optional TTS engine selection for the backend (default: `espeak-ng`). |
+| `TTS_VOICE` | Default backend TTS voice name (default: `en-us`). |
+| `TTS_DEFAULT_SPEED` | Default backend TTS playback speed multiplier. |
+| `TTS_MAX_CHARS` | Maximum text length accepted by the backend TTS endpoint. |
 | `OLLAMA_ALLOWED_SUFFIXES` | Optional comma-separated domain suffix allowlist for `x-ollama-url` (e.g., `ngrok-free.dev,trycloudflare.com`). |
 | `OLLAMA_ALLOWED_HOSTS` | Optional comma-separated exact host allowlist for `x-ollama-url` (e.g., `abc-123.ngrok-free.dev,my-tunnel.example.com`). |
 | `OPENAI_COMPAT_BASE_PATH` | Optional base path for API-key mode endpoints (default: `/v1`) |
