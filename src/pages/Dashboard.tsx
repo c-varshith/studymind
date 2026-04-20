@@ -189,7 +189,7 @@ export default function Dashboard() {
   const decksProgressPct = useMemo(() => Math.min(Math.round((stats.decksCount / 3) * 100), 100), [stats.decksCount]);
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <header>
         <h1 className="font-display text-2xl font-bold">Dashboard</h1>
         <p className="text-sm text-muted-foreground">Track your learning momentum and key study progress in one place.</p>
@@ -275,7 +275,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card className="p-4 flex items-center justify-between">
+      <Card className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <p className="text-sm text-muted-foreground">Weekly activity</p>
           <p className="font-semibold">{loading ? "-" : `${stats.weeklyActiveDays} active day${stats.weeklyActiveDays === 1 ? "" : "s"} in the last 7 days`}</p>

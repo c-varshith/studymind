@@ -8,6 +8,10 @@ import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Brain, Sparkles } from "lucide-react";
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function Auth() {
   const nav = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -55,8 +59,8 @@ export default function Auth() {
         }
       }
       nav("/app");
-    } catch (err: any) {
-      const message = err?.message ?? "Unknown authentication error";
+    } catch (err: unknown) {
+      const message = errorMessage(err, "Unknown authentication error");
       if (isRateLimitError(message)) {
         toast({
           title: "Email limit reached",
@@ -72,7 +76,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-md animate-fade-in">
         <div className="mb-8 text-center">
           <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-elegant mb-4">
@@ -82,7 +86,7 @@ export default function Auth() {
           <p className="text-muted-foreground mt-2">Your AI study companion with voice & quizzes</p>
         </div>
 
-        <Card className="p-6 shadow-elegant border-border/60">
+        <Card className="p-4 sm:p-6 shadow-elegant border-border/60">
           <form onSubmit={submit} className="space-y-4">
             {mode === "signup" && (
               <div className="space-y-2">

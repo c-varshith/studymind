@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Brain, FileText, MessageSquare, Sparkles, Layers, LogOut, Menu, Moon, Sun, UserCircle2, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,15 @@ const nav = [
   { to: "/app/flashcards", label: "Flashcards", icon: Layers },
 ];
 
+const mobileTabs = [
+  ...nav,
+  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
+];
+
 export default function AppShell() {
   const { signOut } = useAuth();
   const nav2 = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
@@ -23,6 +29,19 @@ export default function AppShell() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -39,7 +58,7 @@ export default function AppShell() {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed md:static inset-y-0 left-0 z-40 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform",
+          "fixed md:static inset-y-0 left-0 z-40 w-[80vw] max-w-72 md:w-64 bg-sidebar border-r border-sidebar-border flex flex-col overflow-y-auto transition-transform",
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
@@ -122,16 +141,40 @@ export default function AppShell() {
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>
-        <header className="md:hidden border-b border-border p-3 flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></Button>
-          <span className="font-display font-semibold">StudyMind</span>
+        <header className="md:hidden sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur p-3 flex items-center gap-2">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-5 w-5" /></Button>
+          <span className="font-display font-semibold truncate">StudyMind</span>
           <Button variant="ghost" size="icon" className="ml-auto" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto pb-20 md:pb-0">
           <Outlet />
         </main>
+
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-background/95 backdrop-blur px-2 pt-1 pb-[calc(0.4rem+env(safe-area-inset-bottom))]">
+          <ul className="grid grid-cols-5 gap-1">
+            {mobileTabs.map((item) => (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  end={item.end}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex flex-col items-center justify-center gap-1 rounded-lg py-1.5 text-[11px] font-medium transition-colors",
+                      isActive
+                        ? "bg-secondary text-foreground"
+                        : "text-muted-foreground",
+                    )
+                  }
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span className="leading-none">{item.label}</span>
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
       </div>
     </div>
   );

@@ -27,6 +27,10 @@ interface ProfileRow {
   updated_at: string;
 }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function Profile() {
   const { user } = useAuth();
   const [profileLoading, setProfileLoading] = useState(true);
@@ -101,8 +105,8 @@ export default function Profile() {
       if (authError) throw authError;
 
       toast({ title: "Profile saved", description: "Your display name has been updated." });
-    } catch (e: any) {
-      toast({ title: "Save failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Save failed", description: errorMessage(e, "Profile save failed."), variant: "destructive" });
     } finally {
       setSavingProfile(false);
     }
@@ -130,8 +134,8 @@ export default function Profile() {
       setNewPassword("");
       setConfirmPassword("");
       toast({ title: "Password updated", description: "Your password has been changed successfully." });
-    } catch (e: any) {
-      toast({ title: "Password update failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Password update failed", description: errorMessage(e, "Password update failed."), variant: "destructive" });
     } finally {
       setChangingPassword(false);
     }
@@ -158,8 +162,8 @@ export default function Profile() {
               : "Local model mode enabled. App will use backend default local endpoint."
             : "API key mode enabled. AI calls will include your endpoint and key.",
       });
-    } catch (e: any) {
-      toast({ title: "Invalid URL", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Invalid URL", description: errorMessage(e, "Invalid endpoint URL."), variant: "destructive" });
     } finally {
       setSavingOllama(false);
     }
@@ -194,10 +198,10 @@ export default function Profile() {
         description: "Could not reach the AI backend. Verify endpoint URL, key, and backend status.",
         variant: "destructive",
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Connection failed",
-        description: e?.message ?? "Could not validate AI connection.",
+        description: errorMessage(e, "Could not validate AI connection."),
         variant: "destructive",
       });
     } finally {
@@ -207,20 +211,20 @@ export default function Profile() {
 
   if (!user) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 sm:p-6 max-w-4xl mx-auto">
         <Card className="p-6 text-sm text-muted-foreground">You are not signed in.</Card>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
       <header>
         <h1 className="font-display text-2xl font-bold">Profile & Account</h1>
         <p className="text-muted-foreground text-sm">Manage your account details and security settings.</p>
       </header>
 
-      <Card className="p-6 space-y-4">
+      <Card className="p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <UserCircle2 className="h-5 w-5 text-primary" />
           <h2 className="font-display text-lg font-semibold">Profile</h2>
@@ -253,7 +257,7 @@ export default function Profile() {
         </Button>
       </Card>
 
-      <Card className="p-6 space-y-4">
+      <Card className="p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <Shield className="h-5 w-5 text-primary" />
           <h2 className="font-display text-lg font-semibold">Security</h2>
@@ -290,12 +294,12 @@ export default function Profile() {
         </Button>
       </Card>
 
-      <Card className="p-6 space-y-4">
+      <Card className="p-4 sm:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <h2 className="font-display text-lg font-semibold">AI Endpoint</h2>
         </div>
 
-        <div className="flex items-center justify-between rounded-md border p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Use local model</p>
             <p className="text-xs text-muted-foreground">Enabled by default. Disable to use endpoint + API key mode.</p>

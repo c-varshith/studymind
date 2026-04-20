@@ -15,6 +15,7 @@ import {
   FileText, Upload, Send, BookOpen, X, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Note { id: string; title: string; content: string; updated_at: string; }
 
@@ -71,6 +72,7 @@ function sortNotes(notes: Note[], mode: NoteSortMode) {
 
 export default function Notes() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<NoteSortMode>("recent");
@@ -196,7 +198,7 @@ export default function Notes() {
       );
     }, 600);
     return () => window.clearTimeout(debounce.current);
-  }, [title, content, activeId]);
+  }, [title, content, activeId, user?.id]);
 
   const speak = async () => {
     if (!content.trim()) return;
@@ -380,9 +382,9 @@ export default function Notes() {
   const showRagPanel = ragOpen && hasChunks;
 
   return (
-    <div className="h-full flex">
+    <div className="min-h-full lg:h-full flex flex-col lg:flex-row">
       {/* ── Sidebar ── */}
-      <div className="w-72 border-r border-border bg-card/50 flex flex-col">
+      <div className="w-full lg:w-72 border-b lg:border-b-0 lg:border-r border-border bg-card/50 flex flex-col lg:h-full">
         <div className="p-4 border-b border-border space-y-3">
           <Button
             onClick={newNote}
@@ -403,7 +405,7 @@ export default function Notes() {
             </select>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-2 space-y-1">
+        <div className="flex-1 overflow-x-auto lg:overflow-auto p-2 flex lg:block gap-2 lg:gap-0 lg:space-y-1">
           {notes.length === 0 && (
             <p className="text-center text-sm text-muted-foreground p-6">
               No notes yet. Create your first one!
@@ -444,7 +446,7 @@ export default function Notes() {
               key={n.id}
               onClick={() => selectNote(n)}
               className={cn(
-                "w-full text-left p-3 rounded-lg group transition-colors",
+                "w-full lg:w-auto min-w-[220px] lg:min-w-0 text-left p-3 rounded-lg group transition-colors",
                 activeId === n.id ? "bg-secondary" : "hover:bg-secondary/60",
               )}
             >
@@ -459,7 +461,7 @@ export default function Notes() {
                   role="button"
                   aria-label="Delete note"
                   onClick={(e) => { e.stopPropagation(); remove(n.id); }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 cursor-pointer"
+                  className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 cursor-pointer"
                 >
                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                 </span>
@@ -474,12 +476,12 @@ export default function Notes() {
         {activeId ? (
           <>
             {/* Title bar */}
-            <div className="border-b border-border p-4 flex items-center gap-2">
+            <div className="border-b border-border p-3 sm:p-4 flex items-center gap-2">
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Note title"
-                className="border-0 text-lg font-display font-semibold focus-visible:ring-0 px-0"
+                className="border-0 text-base sm:text-lg font-display font-semibold focus-visible:ring-0 px-0"
               />
               <div className="text-xs text-muted-foreground whitespace-nowrap">
                 {saving ? "Saving…" : "Saved"}
@@ -487,7 +489,7 @@ export default function Notes() {
             </div>
 
             {/* Toolbar */}
-            <div className="p-4 border-b border-border flex flex-wrap gap-2">
+            <div className="p-3 sm:p-4 border-b border-border flex flex-wrap gap-2">
               {/* TTS */}
               {!speaking ? (
                 <Button size="sm" variant="secondary" onClick={speak} disabled={!content.trim()}>
@@ -570,8 +572,8 @@ export default function Notes() {
             </div>
 
             {summaryText && showRagPanel && (
-              <div className="border-b border-border p-4 bg-secondary/20 space-y-3">
-                <div className="flex items-center justify-between gap-2">
+              <div className="border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
@@ -650,8 +652,8 @@ export default function Notes() {
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0">
-                    <div className="h-full border-b border-border p-4 bg-secondary/20 space-y-3 overflow-auto">
-                      <div className="flex items-center justify-between gap-2">
+                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3 overflow-auto">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
                         <div className="flex items-center gap-2">
                           <Button size="sm" variant="secondary" onClick={insertSummaryIntoNote}>Insert into note</Button>
@@ -728,7 +730,10 @@ export default function Notes() {
 
                   <ResizableHandle
                     withHandle
-                    className="data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors"
+                    className={cn(
+                      "data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors",
+                      isMobile && "hidden",
+                    )}
                   />
 
                   <ResizablePanel minSize={30} className="min-h-0">
@@ -736,7 +741,7 @@ export default function Notes() {
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
-                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -745,7 +750,7 @@ export default function Notes() {
               <div className="flex-1 min-h-0">
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0">
-                    <div className="h-full border-b border-border p-4 bg-secondary/30 space-y-3 overflow-auto">
+                    <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3 overflow-auto">
                       <div className="flex items-center gap-2">
                         <Input
                           value={ragQuestion}
@@ -791,7 +796,10 @@ export default function Notes() {
 
                   <ResizableHandle
                     withHandle
-                    className="data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors"
+                    className={cn(
+                      "data-[panel-group-direction=vertical]:h-2 data-[panel-group-direction=vertical]:cursor-row-resize bg-border/70 hover:bg-primary/40 transition-colors",
+                      isMobile && "hidden",
+                    )}
                   />
 
                   <ResizablePanel minSize={30} className="min-h-0">
@@ -799,7 +807,7 @@ export default function Notes() {
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
                       placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
-                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+                      className="h-full resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
@@ -809,7 +817,7 @@ export default function Notes() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder="Start typing, paste study material, upload a PDF, or use the mic…"
-                className="flex-1 resize-none border-0 focus-visible:ring-0 rounded-none p-6 text-base leading-relaxed font-sans"
+                className="flex-1 resize-none border-0 focus-visible:ring-0 rounded-none p-4 sm:p-6 text-sm sm:text-base leading-relaxed font-sans"
               />
             )}
           </>

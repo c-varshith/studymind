@@ -14,6 +14,10 @@ interface Deck { id: string; title: string; created_at: string; }
 interface Card { id: string; front: string; back: string; }
 interface Note { id: string; title: string; content: string; }
 
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function Flashcards() {
   const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
@@ -63,8 +67,8 @@ export default function Flashcards() {
       await loadDecks();
       await openDeck(deck as Deck);
       toast({ title: "Deck ready!", description: `${result.cards.length} cards generated.` });
-    } catch (e: any) {
-      toast({ title: "Generation failed", description: e.message, variant: "destructive" });
+    } catch (e: unknown) {
+      toast({ title: "Generation failed", description: errorMessage(e, "Failed to generate flashcards."), variant: "destructive" });
     } finally { setGenerating(false); }
   };
 
@@ -78,18 +82,18 @@ export default function Flashcards() {
   const prev = () => { setFlipped(false); setIdx((i) => (i - 1 + cards.length) % cards.length); };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-2xl font-bold">Flashcards</h1>
           <p className="text-muted-foreground text-sm">AI-built decks from your notes. Tap a card to flip.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Select value={noteId} onValueChange={setNoteId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Pick a note" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[220px]"><SelectValue placeholder="Pick a note" /></SelectTrigger>
             <SelectContent>{notes.map((n) => <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>)}</SelectContent>
           </Select>
-          <Button onClick={create} disabled={!noteId || generating} className="bg-gradient-primary text-primary-foreground">
+          <Button onClick={create} disabled={!noteId || generating} className="bg-gradient-primary text-primary-foreground w-full sm:w-auto">
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
             Generate deck
           </Button>
@@ -105,7 +109,7 @@ export default function Flashcards() {
           <div className="perspective select-none mx-auto max-w-2xl">
             <button
               onClick={() => setFlipped((f) => !f)}
-              className="relative w-full h-72 md:h-80 preserve-3d transition-transform duration-500"
+              className="relative w-full h-64 sm:h-72 md:h-80 preserve-3d transition-transform duration-500"
               style={{ transform: flipped ? "rotateY(180deg)" : "none" }}
               aria-label="Flip card"
             >
@@ -117,7 +121,7 @@ export default function Flashcards() {
               </div>
             </button>
           </div>
-          <div className="mt-6 flex items-center justify-center gap-4">
+          <div className="mt-6 flex items-center justify-center gap-3 sm:gap-4">
             <Button variant="secondary" onClick={prev}><ChevronLeft className="h-4 w-4" /></Button>
             <div className="text-sm text-muted-foreground">{idx + 1} / {cards.length}</div>
             <Button variant="secondary" onClick={() => setFlipped((f) => !f)}><RotateCw className="h-4 w-4" /></Button>
@@ -138,7 +142,7 @@ export default function Flashcards() {
                   <h3 className="font-display font-semibold truncate">{d.title}</h3>
                   <p className="text-sm text-muted-foreground mt-1">Tap to study</p>
                 </div>
-                <button onClick={() => remove(d.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10">
+                <button onClick={() => remove(d.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10">
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </button>
               </div>

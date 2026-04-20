@@ -163,19 +163,19 @@ export default function Quiz() {
   const activeHistory = active ? (historyByQuiz[active.id] ?? []) : [];
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-6">
       <header className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-display text-2xl font-bold">Quizzes</h1>
           <p className="text-muted-foreground text-sm">Generate a quiz from any note in seconds.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
           <Select value={noteId} onValueChange={setNoteId}>
-            <SelectTrigger className="w-[220px]"><SelectValue placeholder="Pick a note" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[220px]"><SelectValue placeholder="Pick a note" /></SelectTrigger>
             <SelectContent>{notes.map((n) => <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>)}</SelectContent>
           </Select>
           <Select value={difficulty} onValueChange={(value) => setDifficulty(value as QuizDifficulty)}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Difficulty" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Difficulty" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="easy">Easy</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
@@ -183,14 +183,14 @@ export default function Quiz() {
             </SelectContent>
           </Select>
           <Select value={String(questionCount)} onValueChange={(value) => setQuestionCount(Number(value) as QuizQuestionCount)}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Questions" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="Questions" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="5">5 questions</SelectItem>
               <SelectItem value="10">10 questions</SelectItem>
               <SelectItem value="15">15 questions</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={create} disabled={!noteId || generating} className="bg-gradient-primary text-primary-foreground">
+          <Button onClick={create} disabled={!noteId || generating} className="bg-gradient-primary text-primary-foreground w-full sm:w-auto">
             {generating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
             Generate quiz
           </Button>
@@ -198,10 +198,10 @@ export default function Quiz() {
       </header>
 
       {active ? (
-        <Card className="p-6 shadow-elegant">
+        <Card className="p-4 sm:p-6 shadow-elegant">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="font-display text-xl font-semibold">{active.title}</h2>
+              <h2 className="font-display text-lg sm:text-xl font-semibold">{active.title}</h2>
               <p className="text-xs text-muted-foreground mt-1 capitalize">
                 {active.difficulty ?? "medium"} difficulty • {active.question_count ?? active.questions.length} questions
               </p>
@@ -240,7 +240,7 @@ export default function Quiz() {
               </div>
             ))}
           </div>
-          <div className="mt-6 flex items-center justify-between">
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             {!submitted ? (
               <Button onClick={submitAnswers} disabled={Object.keys(answers).length !== active.questions.length || savingResult} className="bg-gradient-primary text-primary-foreground">
                 {savingResult ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
@@ -322,7 +322,7 @@ export default function Quiz() {
                     </p>
                   )}
                 </div>
-                <button onClick={() => remove(q.id)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10">
+                <button onClick={() => remove(q.id)} className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 rounded hover:bg-destructive/10">
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </button>
               </div>

@@ -68,7 +68,9 @@ Deno.serve(async (req: Request) => {
                 const chunk = JSON.stringify({ choices: [{ delta: { content: ev.delta?.text ?? "" } }] });
                 controller.enqueue(encoder.encode(`data: ${chunk}\n\n`));
               }
-            } catch {}
+            } catch {
+              continue;
+            }
           }
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));

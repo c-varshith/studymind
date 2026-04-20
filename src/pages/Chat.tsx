@@ -178,7 +178,7 @@ export default function Chat() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="border-b border-border p-4 flex items-center gap-3 flex-wrap">
+      <div className="border-b border-border p-3 sm:p-4 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
             <Sparkles className="h-4 w-4 text-primary-foreground" />
@@ -188,10 +188,10 @@ export default function Chat() {
             <p className="text-xs text-muted-foreground">Ask anything. Optionally ground answers in a note.</p>
           </div>
         </div>
-        <div className="ml-auto">
+        <div className="w-full sm:w-auto sm:ml-auto">
           <div className="flex items-center gap-2">
             <Select value={noteId} onValueChange={setNoteId}>
-              <SelectTrigger className="w-[220px]"><SelectValue placeholder="No note context" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[260px]"><SelectValue placeholder="No note context" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No note context</SelectItem>
                 {notes.map((n) => <SelectItem key={n.id} value={n.id}>{n.title}</SelectItem>)}
@@ -201,7 +201,7 @@ export default function Chat() {
         </div>
       </div>
 
-      <div ref={scrollerRef} className="flex-1 overflow-auto p-4 md:p-6 space-y-4">
+      <div ref={scrollerRef} className="flex-1 overflow-auto p-3 sm:p-4 md:p-6 space-y-4">
         {messages.length === 0 && (
           <div className="max-w-md mx-auto text-center mt-16">
             <div className="h-14 w-14 mx-auto rounded-2xl bg-secondary flex items-center justify-center mb-4">
@@ -214,7 +214,7 @@ export default function Chat() {
         {messages.map((m, i) => (
           <div key={i} className={cn("flex gap-3 animate-fade-in", m.role === "user" ? "justify-end" : "justify-start")}>
             <div className={cn(
-              "max-w-[85%] rounded-2xl px-4 py-3 shadow-soft",
+              "max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 shadow-soft",
               m.role === "user" ? "bg-gradient-primary text-primary-foreground" : "bg-card border border-border",
             )}>
               {m.role === "assistant" ? (
@@ -275,8 +275,8 @@ export default function Chat() {
         )}
       </div>
 
-      <div className="border-t border-border p-4">
-        <div className="flex gap-2 max-w-3xl mx-auto">
+      <div className="border-t border-border p-3 sm:p-4">
+        <div className="flex flex-col sm:flex-row gap-2 max-w-3xl mx-auto">
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -285,7 +285,7 @@ export default function Chat() {
             className="resize-none min-h-[52px] max-h-40"
             rows={1}
           />
-          <Button onClick={send} disabled={loading || !input.trim()} className="bg-gradient-primary text-primary-foreground self-end h-[52px]">
+          <Button onClick={send} disabled={loading || !input.trim()} className="bg-gradient-primary text-primary-foreground h-[52px] sm:w-auto w-full">
             <Send className="h-4 w-4" />
           </Button>
         </div>
