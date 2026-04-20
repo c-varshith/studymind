@@ -4,7 +4,7 @@ StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that 
 
 By default, StudyMind uses **local models via Ollama**. Users can now also switch to an **API key mode** from the Profile page and connect to an external AI endpoint.
 
-**Live Demo:** https://studymind-rho.vercel.app
+**Live Demo:** https://studymind-henna.vercel.app
 
 ---
 
@@ -70,7 +70,7 @@ The backend on Render can't reach `localhost` directly, so ngrok gives it a publ
    ngrok http 11434 --host-header="localhost:11434"
    ```
 3. Copy the `https://xxxx-xxxx.ngrok-free.dev` URL from the terminal output.
-4. Open https://studymind-rho.vercel.app, go to **Profile -> AI Endpoint**, keep **Use local model** enabled, and paste the ngrok URL.
+4. Open https://studymind-henna.vercel.app, go to **Profile -> AI Endpoint**, keep **Use local model** enabled, and paste the ngrok URL.
 
 > **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile -> AI Endpoint** when it changes.
 
