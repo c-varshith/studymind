@@ -15,7 +15,9 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 - 🧪 **Quiz Generation** — Auto-generate multiple choice quizzes from your notes
 - 🃏 **Flashcard Generation** — Create study flashcards instantly
 - 📝 **Summarization** — Get concise summaries of your notes
+- 📥 **Smart PDF Export** — Download a polished PDF in one click (exports note content, summary, or simplified analysis automatically based on what is currently available)
 - 🔊 **Text-to-Speech** — Listen to your notes read aloud
+- 🎨 **Formatted PDF Output** — Exported PDFs include structured headings, readable spacing, section dividers, and page numbers for better readability
 
 ---
 
