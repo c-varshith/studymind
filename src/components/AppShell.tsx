@@ -56,6 +56,9 @@ export default function AppShell() {
     setTheme(theme === "dark" ? "light" : "dark");
   };
 
+  const showDesktopTopDivider = location.pathname === "/app" || location.pathname === "/app/chat";
+  const showDesktopTopLabel = location.pathname !== "/app/quiz" && location.pathname !== "/app/flashcards";
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
@@ -65,12 +68,18 @@ export default function AppShell() {
           open ? "translate-x-0" : "-translate-x-full md:translate-x-0",
         )}
       >
-        <div className="p-5 flex items-center gap-2 border-b border-sidebar-border">
+        <NavLink
+          to="/app"
+          end
+          onClick={() => setOpen(false)}
+          className="p-5 flex items-center gap-2 border-b border-sidebar-border hover:bg-sidebar-accent/60 transition-colors"
+          aria-label="Go to StudyMind home"
+        >
           <div className="h-9 w-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-soft">
             <Brain className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="font-display font-bold text-lg text-sidebar-foreground">StudyMind</span>
-        </div>
+        </NavLink>
         <nav className="flex-1 p-3 space-y-1">
           {nav.map((item) => (
             <NavLink
@@ -139,8 +148,11 @@ export default function AppShell() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="hidden md:flex border-b border-border p-3 items-center justify-end">
-          <Button variant="ghost" size="icon" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
+        <header className={cn("hidden md:flex p-3 items-center relative", showDesktopTopDivider && "border-b border-border")}>
+          {showDesktopTopLabel && (
+            <p className="text-sm text-muted-foreground font-medium absolute left-1/2 -translate-x-1/2">AI Tutor Based Learning</p>
+          )}
+          <Button variant="ghost" size="icon" className="ml-auto" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>

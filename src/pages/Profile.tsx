@@ -228,6 +228,7 @@ export default function Profile() {
     setDeletingAccount(true);
     try {
       await deleteCurrentAccount();
+      await supabase.auth.signOut({ scope: "local" });
 
       setStoredApiKey("");
       setStoredOllamaUrl("");
@@ -238,7 +239,7 @@ export default function Profile() {
         description: "Your account and all associated data have been permanently deleted.",
       });
 
-      navigate("/");
+      navigate("/", { replace: true });
     } catch (e: unknown) {
       toast({
         title: "Deletion failed",

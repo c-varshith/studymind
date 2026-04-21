@@ -8,19 +8,51 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
-    });
+    let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      setSession(sess);
-      setUser(sess?.user ?? null);
+    const applySignedOutState = () => {
+      if (!mounted) return;
+      setSession(null);
+      setUser(null);
       setLoading(false);
+    };
+
+    const applySessionState = (sess: Session, verifiedUser: User) => {
+      if (!mounted) return;
+      setSession(sess);
+      setUser(verifiedUser);
+      setLoading(false);
+    };
+
+    const validateAndApplySession = async (sess: Session | null) => {
+      if (!sess) {
+        applySignedOutState();
+        return;
+      }
+
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user) {
+        await supabase.auth.signOut({ scope: "local" });
+        applySignedOutState();
+        return;
+      }
+
+      applySessionState(sess, data.user);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
+      void validateAndApplySession(sess);
     });
 
-    return () => subscription.unsubscribe();
+    void supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      void validateAndApplySession(sess);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  return { session, user, loading, signOut: () => supabase.auth.signOut() };
+  return { session, user, loading, signOut: () => supabase.auth.signOut({ scope: "local" }) };
 }
