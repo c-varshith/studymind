@@ -49,6 +49,7 @@ export default function Chat() {
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioStatus, setAudioStatus] = useState("");
+  const [panelSizes, setPanelSizes] = useState<number[]>([26, 74]);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -57,6 +58,15 @@ export default function Chat() {
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   const activeNote = noteId !== "none" ? notes.find((note) => note.id === noteId) : undefined;
+
+  const handlePanelLayout = (sizes: number[]) => {
+    setPanelSizes(sizes);
+    try {
+      window.localStorage.setItem("studymind.chat-panel-sizes", JSON.stringify(sizes));
+    } catch {
+      // Ignore storage errors
+    }
+  };
 
   const loadNotes = useCallback(async () => {
     const { data, error } = await supabase
@@ -92,6 +102,21 @@ export default function Chat() {
   useEffect(() => {
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  useEffect(() => {
+    // Load saved panel sizes from localStorage
+    try {
+      const saved = window.localStorage.getItem("studymind.chat-panel-sizes");
+      if (saved) {
+        const sizes = JSON.parse(saved) as number[];
+        if (Array.isArray(sizes) && sizes.length === 2) {
+          setPanelSizes(sizes);
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, []);
 
   useEffect(() => {
     void loadNotes();
@@ -583,12 +608,12 @@ export default function Chat() {
         {mainPane}
       </div>
     ) : (
-      <ResizablePanelGroup direction="horizontal" className="h-full w-full">
-        <ResizablePanel defaultSize={26} minSize={18} maxSize={38} className="min-w-0 h-full">
+      <ResizablePanelGroup direction="horizontal" className="h-full w-full" onLayout={handlePanelLayout}>
+        <ResizablePanel defaultSize={panelSizes[0]} minSize={18} maxSize={38} className="min-w-0 h-full">
           {sidebar}
         </ResizablePanel>
         <ResizableHandle className="w-1 cursor-col-resize bg-transparent hover:bg-transparent" />
-        <ResizablePanel defaultSize={74} minSize={45} className="min-w-0 h-full">
+        <ResizablePanel defaultSize={panelSizes[1]} minSize={45} className="min-w-0 h-full">
           {mainPane}
         </ResizablePanel>
       </ResizablePanelGroup>
