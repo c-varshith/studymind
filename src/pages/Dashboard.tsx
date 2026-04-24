@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchNotesWithTagSupport } from "@/lib/notes";
+import { readCachedLoginDay } from "@/lib/activity";
 import { Activity, BookOpen, FileText, Flame, Layers, Sparkles, Clock, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -100,6 +101,10 @@ function computeStreak(activityDays: Date[]) {
   return streak;
 }
 
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -139,10 +144,10 @@ export default function Dashboard() {
           .select("note_id")
           .eq("user_id", user.id),
         supabase
-          .from("user_activity")
-          .select("activity_day")
+          .from("user_login_activity")
+          .select("login_day")
           .eq("user_id", user.id)
-          .order("activity_day", { ascending: false }),
+          .order("login_day", { ascending: false }),
       ]);
 
       const notes = notesResult.notes as NoteLite[];
@@ -150,13 +155,17 @@ export default function Dashboard() {
       const decks = decksRes.data ?? [];
       const cards = cardsRes.data ?? [];
       const chunks = (chunksRes.data ?? []) as Array<{ note_id: string }>;
-      const activity = (activityRes.data ?? []) as Array<{ activity_day: string }>;
+      const activity = (activityRes.data ?? []) as Array<{ login_day: string }>;
 
       // Save all notes for search
       setAllNotes(notes);
 
-      // Use activity table for streak and weekly activity
-      const activityDays = activity.map((a) => new Date(a.activity_day));
+      // Use login activity only for streak and weekly login counts.
+      const loginDays = activity.map((a) => new Date(a.login_day));
+      const cachedLoginDay = readCachedLoginDay(user.id);
+      if (cachedLoginDay === getTodayKey()) {
+        loginDays.push(new Date(cachedLoginDay));
+      }
 
       const uploadedIds = new Set(chunks.map((r) => r.note_id).filter(Boolean));
       const uploadedDocTitles = notes
@@ -166,7 +175,7 @@ export default function Dashboard() {
 
       const weeklyCutoff = new Date();
       weeklyCutoff.setDate(weeklyCutoff.getDate() - 6);
-      const weeklyActiveDays = activityDays.filter((day) => day >= weeklyCutoff).length;
+      const weeklyActiveDays = loginDays.filter((day) => day >= weeklyCutoff).length;
 
       const notesProgress = Math.min(notes.length / 10, 1);
       const quizzesProgress = Math.min(quizzes.length / 5, 1);
@@ -174,7 +183,7 @@ export default function Dashboard() {
       const overallProgress = Math.round(((notesProgress + quizzesProgress + decksProgress) / 3) * 100);
 
       const nextStats: DashboardStats = {
-        streakDays: computeStreak(activityDays),
+        streakDays: computeStreak(loginDays),
         notesCount: notes.length,
         quizzesCount: quizzes.length,
         decksCount: decks.length,
@@ -267,7 +276,7 @@ export default function Dashboard() {
         <>
         <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="p-4 space-y-1">
-          <div className="flex items-center gap-2 text-muted-foreground text-sm"><Flame className="h-4 w-4" /> Streak</div>
+          <div className="flex items-center gap-2 text-muted-foreground text-sm"><Flame className="h-4 w-4" /> Login Streak</div>
           <p className="text-2xl font-bold">{loading ? "-" : `${stats.streakDays} day${stats.streakDays === 1 ? "" : "s"}`}</p>
         </Card>
 
@@ -347,8 +356,8 @@ export default function Dashboard() {
 
       <Card className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <p className="text-sm text-muted-foreground">Weekly activity</p>
-          <p className="font-semibold">{loading ? "-" : `${stats.weeklyActiveDays} active day${stats.weeklyActiveDays === 1 ? "" : "s"} in the last 7 days`}</p>
+          <p className="text-sm text-muted-foreground">Weekly logins</p>
+          <p className="font-semibold">{loading ? "-" : `${stats.weeklyActiveDays} login day${stats.weeklyActiveDays === 1 ? "" : "s"} in the last 7 days`}</p>
         </div>
       </Card>
 

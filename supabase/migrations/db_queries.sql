@@ -342,7 +342,7 @@ AS $$
 $$;
 
 -- =============================================================================
--- user_activity — track login/activity independent of content
+-- user_activity — track study actions independent of login
 -- =============================================================================
 
 CREATE TABLE public.user_activity (
@@ -364,18 +364,40 @@ CREATE INDEX idx_user_activity_user ON public.user_activity(user_id, activity_da
 
 
 -- =============================================================================
+-- user_login_activity — track auth logins for streaks
+-- =============================================================================
+
+CREATE TABLE public.user_login_activity (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  login_day   DATE        NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, login_day)
+);
+
+ALTER TABLE public.user_login_activity ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "user_login_activity_select" ON public.user_login_activity
+  FOR SELECT USING ((select auth.uid()) = user_id);
+CREATE POLICY "user_login_activity_insert" ON public.user_login_activity
+  FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+
+CREATE INDEX idx_user_login_activity_user ON public.user_login_activity(user_id, login_day DESC);
+
+
+-- =============================================================================
 -- Track user login activity
 -- =============================================================================
-CREATE OR REPLACE FUNCTION public.track_user_activity()
+CREATE OR REPLACE FUNCTION public.track_user_login_activity()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
-  INSERT INTO public.user_activity (user_id, activity_day)
+  INSERT INTO public.user_login_activity (user_id, login_day)
   VALUES (NEW.id, now()::date)
-  ON CONFLICT (user_id, activity_day) DO NOTHING;
+  ON CONFLICT (user_id, login_day) DO NOTHING;
   RETURN NEW;
 END;
 $$;
@@ -385,7 +407,7 @@ CREATE TRIGGER on_auth_user_activity
   AFTER UPDATE ON auth.users
   FOR EACH ROW
   WHEN (OLD.last_sign_in_at IS DISTINCT FROM NEW.last_sign_in_at)
-  EXECUTE FUNCTION public.track_user_activity();
+  EXECUTE FUNCTION public.track_user_login_activity();
 
 -- Add quiz generation metadata and persisted quiz results
 

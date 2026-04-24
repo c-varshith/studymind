@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
+import { cacheLoginDay, trackLoginActivity } from "@/lib/activity";
 import { Brain, Sparkles } from "lucide-react";
 
 function errorMessage(error: unknown, fallback: string) {
@@ -37,6 +38,8 @@ export default function Auth() {
         });
         if (error) throw error;
         if (data.session) {
+          cacheLoginDay(data.session.user.id);
+          await trackLoginActivity(data.session.user.id);
           toast({ title: "Account created", description: "You are now signed in." });
           nav("/app");
           return;
@@ -45,7 +48,7 @@ export default function Auth() {
         setMode("signin");
         return;
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
           if (error.message.toLowerCase().includes("email not confirmed")) {
             toast({
@@ -56,6 +59,10 @@ export default function Auth() {
             return;
           }
           throw error;
+        }
+        if (data.session) {
+          cacheLoginDay(data.session.user.id);
+          await trackLoginActivity(data.session.user.id);
         }
       }
       nav("/app");
