@@ -250,6 +250,8 @@ export default function Notes() {
   const [summaryVisualFlow, setSummaryVisualFlow] = useState<Array<{ label: string; note: string }>>([]);
   const [eli5Mode, setEli5Mode] = useState(false);
   const [hasChunks, setHasChunks] = useState(false);
+  const [panelSizesVertical, setPanelSizesVertical] = useState<number[] | null>(null);
+  const [panelSizesHorizontal, setPanelSizesHorizontal] = useState<number[] | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
@@ -257,6 +259,7 @@ export default function Notes() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const debounce = useRef<number>();
   const suppressAutosaveRef = useRef(false);
+  const panelSizesLoadedRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -334,6 +337,39 @@ export default function Notes() {
     return result;
   }, [sortMode, tagsSupported]);
 
+  useEffect(() => {
+    // Load saved panel sizes from localStorage once on mount
+    if (panelSizesLoadedRef.current) return;
+
+    let verticalSizes: number[] | null = null;
+    let horizontalSizes: number[] | null = null;
+
+    try {
+      const savedVertical = window.localStorage.getItem("studymind.notes-panel-sizes-vertical");
+      if (savedVertical) {
+        const sizes = JSON.parse(savedVertical) as number[];
+        if (Array.isArray(sizes) && sizes.length === 1) {
+          verticalSizes = sizes;
+        }
+      }
+
+      const savedHorizontal = window.localStorage.getItem("studymind.notes-panel-sizes-horizontal");
+      if (savedHorizontal) {
+        const sizes = JSON.parse(savedHorizontal) as number[];
+        if (Array.isArray(sizes) && sizes.length === 2) {
+          horizontalSizes = sizes;
+        }
+      }
+    } catch {
+      // Ignore parse errors
+    }
+
+    // Use defaults if no saved state
+    setPanelSizesVertical(verticalSizes || [42]);
+    setPanelSizesHorizontal(horizontalSizes || [22, 78]);
+    panelSizesLoadedRef.current = true;
+  }, []);
+
   useEffect(() => { void load(); }, [load]);
   useEffect(() => () => {
     ttsAbortRef.current?.abort();
@@ -374,6 +410,24 @@ export default function Notes() {
     window.setTimeout(() => {
       suppressAutosaveRef.current = false;
     }, 0);
+  };
+
+  const handleVerticalPanelLayout = (sizes: number[]) => {
+    setPanelSizesVertical(sizes);
+    try {
+      window.localStorage.setItem("studymind.notes-panel-sizes-vertical", JSON.stringify(sizes));
+    } catch {
+      // Ignore storage errors
+    }
+  };
+
+  const handleHorizontalPanelLayout = (sizes: number[]) => {
+    setPanelSizesHorizontal(sizes);
+    try {
+      window.localStorage.setItem("studymind.notes-panel-sizes-horizontal", JSON.stringify(sizes));
+    } catch {
+      // Ignore storage errors
+    }
   };
 
   const newNote = async () => {
@@ -1049,8 +1103,9 @@ export default function Notes() {
                 </div>
               ) : (
               <div className="flex-1 min-h-0">
-                <ResizablePanelGroup direction="vertical" className="h-full">
-                  <ResizablePanel defaultSize={42} minSize={24} maxSize={70} className="min-h-0 overflow-hidden">
+                {panelSizesVertical && (
+                <ResizablePanelGroup direction="vertical" className="h-full" onLayout={handleVerticalPanelLayout}>
+                  <ResizablePanel defaultSize={panelSizesVertical[0]} key={`top-${panelSizesVertical[0]}`} minSize={24} maxSize={70} className="min-h-0 overflow-hidden">
                     <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/20 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-sm font-medium text-primary">{summaryTitle || "Summary"}</p>
@@ -1143,6 +1198,7 @@ export default function Notes() {
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
+                )}
               </div>
               )
             ) : showRagPanel ? (
@@ -1200,8 +1256,9 @@ export default function Notes() {
                 </div>
               ) : (
               <div className="flex-1 min-h-0">
-                <ResizablePanelGroup direction="vertical" className="h-full">
-                  <ResizablePanel defaultSize={42} minSize={25} maxSize={70} className="min-h-0 overflow-hidden">
+                {panelSizesVertical && (
+                <ResizablePanelGroup direction="vertical" className="h-full" onLayout={handleVerticalPanelLayout}>
+                  <ResizablePanel defaultSize={panelSizesVertical[0]} key={`top2-${panelSizesVertical[0]}`} minSize={25} maxSize={70} className="min-h-0 overflow-hidden">
                     <div className="h-full border-b border-border p-3 sm:p-4 bg-secondary/30 space-y-3 overflow-y-auto overflow-x-hidden scrollbar-hide">
                       <div className="flex items-center gap-2">
                         <Input
@@ -1262,6 +1319,7 @@ export default function Notes() {
                     />
                   </ResizablePanel>
                 </ResizablePanelGroup>
+                )}
               </div>
               )
             ) : (
@@ -1294,9 +1352,10 @@ export default function Notes() {
         </div>
       ) : (
         // Desktop: Resizable horizontal layout
-        <ResizablePanelGroup direction="horizontal" className="w-full h-full">
+        panelSizesHorizontal ? (
+        <ResizablePanelGroup direction="horizontal" className="w-full h-full" onLayout={handleHorizontalPanelLayout}>
           {/* ── Sidebar Panel ── */}
-          <ResizablePanel defaultSize={22} minSize={18} maxSize={35} className="min-w-0">
+          <ResizablePanel defaultSize={panelSizesHorizontal[0]} key={`left-${panelSizesHorizontal[0]}`} minSize={18} maxSize={35} className="min-w-0">
             <div className="w-full h-full bg-card/50 flex flex-col border-r border-border">
               <div className="p-4 border-b border-border space-y-3">
                 <Button
@@ -1358,7 +1417,7 @@ export default function Notes() {
           <ResizableHandle className={INVISIBLE_HORIZONTAL_RESIZE_HANDLE} />
 
           {/* ── Editor Panel ── */}
-          <ResizablePanel defaultSize={78} minSize={65} className="min-w-0 flex flex-col">
+          <ResizablePanel defaultSize={panelSizesHorizontal[1]} key={`right-${panelSizesHorizontal[1]}`} minSize={65} className="min-w-0 flex flex-col">
             {activeId ? (
               <>
                 {/* Title bar */}
@@ -1785,6 +1844,7 @@ export default function Notes() {
             )}
           </ResizablePanel>
         </ResizablePanelGroup>
+        ) : null
       )}
     </div>
   );
