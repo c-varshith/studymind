@@ -443,7 +443,7 @@ export default function Notes() {
     if (error) return toast({ title: "Error", description: error.message, variant: "destructive" });
     await trackActivity(user.id);
     await load();
-    selectNote(data as Note);
+    selectNote({ ...data, tags: [] });
   };
 
   const remove = async (id: string) => {
