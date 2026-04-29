@@ -230,14 +230,30 @@ export default function AppShell() {
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>
-        <header className="md:hidden sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur p-3 flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu"><Menu className="h-5 w-5" /></Button>
+        <header className="md:hidden sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur p-3 flex items-center justify-center gap-2 relative">
+          <Button variant="ghost" size="icon" onClick={() => setOpen(true)} aria-label="Open menu" className="absolute left-3"><Menu className="h-5 w-5" /></Button>
           <div className="flex items-center gap-2">
-            <span className={cn("h-2.5 w-2.5 rounded-full shadow", aiMode === "local" ? "bg-amber-500" : connected ? "bg-green-500" : "bg-red-500")} />
-            <span className="text-sm font-medium truncate">{aiMode === "local" ? "Local Model Mode" : connected ? "Connected" : "Disconnected"}</span>
+            <span className="relative inline-flex items-center justify-center">
+              {aiMode === "local" ? (
+                <>
+                  <span className="h-3 w-3 rounded-full bg-amber-500 shadow" />
+                  <span className="absolute inline-flex h-3 w-3 rounded-full bg-amber-500 opacity-60 blur-sm animate-pulse" />
+                </>
+              ) : connected ? (
+                <>
+                  <span className="h-3 w-3 rounded-full bg-green-500 shadow" />
+                  <span className="absolute inline-flex h-3 w-3 rounded-full bg-green-500 opacity-60 blur-sm animate-ping" />
+                </>
+              ) : (
+                <>
+                  <span className="h-3 w-3 rounded-full bg-red-500 shadow" />
+                  <span className="absolute inline-flex h-3 w-3 rounded-full bg-red-500 opacity-60 blur-sm animate-pulse" />
+                </>
+              )}
+            </span>
+            <span className="text-sm font-medium">{aiMode === "local" ? "Local Model Mode" : connected ? "API Key Connected" : "API Key Disconnected"}</span>
           </div>
-          <span className="font-display font-semibold truncate ml-2">StudyMind</span>
-          <Button variant="ghost" size="icon" className="ml-auto" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
+          <Button variant="ghost" size="icon" className="absolute right-3" onClick={toggleTheme} disabled={!mounted} aria-label="Toggle theme">
             {mounted && theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
         </header>
