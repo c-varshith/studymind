@@ -40,6 +40,11 @@ export function setStoredAiMode(mode: AiMode): AiMode {
   if (typeof window === "undefined") return "local";
   const normalized = normalizeAiMode(mode);
   window.localStorage.setItem(AI_MODE_STORAGE_KEY, normalized);
+  try {
+    window.dispatchEvent(new Event("studymind:ai-config-updated"));
+  } catch {
+    // ignore
+  }
   return normalized;
 }
 
@@ -54,10 +59,20 @@ export function setStoredApiKey(rawApiKey: string): string {
   const normalized = normalizeApiKey(rawApiKey);
   if (!normalized) {
     window.localStorage.removeItem(AI_API_KEY_STORAGE_KEY);
+    try {
+      window.dispatchEvent(new Event("studymind:ai-config-updated"));
+    } catch {
+      // ignore
+    }
     return "";
   }
 
   window.localStorage.setItem(AI_API_KEY_STORAGE_KEY, normalized);
+  try {
+    window.dispatchEvent(new Event("studymind:ai-config-updated"));
+  } catch {
+    // ignore
+  }
   return normalized;
 }
 
@@ -75,6 +90,11 @@ export function setStoredOllamaUrl(rawUrl: string): string {
   }
 
   window.localStorage.setItem(OLLAMA_URL_STORAGE_KEY, normalized);
+  try {
+    window.dispatchEvent(new Event("studymind:ai-config-updated"));
+  } catch {
+    // ignore
+  }
   return normalized;
 }
 
