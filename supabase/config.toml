@@ -4,16 +4,16 @@ project_id = "ntiswktkeudikydbacry"
 enable_confirmations = false
 
 [functions.chat]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-quiz]
-verify_jwt = false
+verify_jwt = true
 
 [functions.generate-flashcards]
-verify_jwt = false
+verify_jwt = true
 
 [functions.tts]
-verify_jwt = false
+verify_jwt = true
 
 [functions.stt]
-verify_jwt = false
+verify_jwt = true
