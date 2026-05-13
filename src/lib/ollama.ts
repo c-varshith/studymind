@@ -1,4 +1,5 @@
 const OLLAMA_URL_STORAGE_KEY = "studymind.ollamaUrl";
+const DEFAULT_OLLAMA_URL = "https://openrouter.ai/api/v1";
 const AI_MODE_STORAGE_KEY = "studymind.aiMode";
 const AI_API_KEY_STORAGE_KEY = "studymind.aiApiKey";
 
@@ -26,13 +27,13 @@ function normalizeAiMode(mode: string): AiMode {
 }
 
 export function getStoredOllamaUrl(): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(OLLAMA_URL_STORAGE_KEY) ?? "";
+  if (typeof window === "undefined") return DEFAULT_OLLAMA_URL;
+  return window.localStorage.getItem(OLLAMA_URL_STORAGE_KEY) ?? DEFAULT_OLLAMA_URL;
 }
 
 export function getStoredAiMode(): AiMode {
-  if (typeof window === "undefined") return "local";
-  const raw = window.localStorage.getItem(AI_MODE_STORAGE_KEY) ?? "local";
+  if (typeof window === "undefined") return "api-key";
+  const raw = window.localStorage.getItem(AI_MODE_STORAGE_KEY) ?? "api-key";
   return normalizeAiMode(raw);
 }
 
