@@ -345,7 +345,7 @@ export default function Profile() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-md border p-3">
           <div>
             <p className="text-sm font-medium">Use local model</p>
-            <p className="text-xs text-muted-foreground">Enabled by default. Disable to use endpoint + API key mode.</p>
+            <p className="text-xs text-muted-foreground">Disabled by default. Enable to use endpoint + local model mode.</p>
           </div>
           <Switch
             checked={aiMode === "local"}
