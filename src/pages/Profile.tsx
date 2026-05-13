@@ -384,6 +384,17 @@ export default function Profile() {
             <p className="text-xs text-muted-foreground">
               Your key is stored in browser local storage and sent in request headers only when local mode is disabled.
             </p>
+            <p className="text-xs">
+              Don't have one?{" "}
+              <a
+                href="https://openrouter.ai/workspaces/default/keys"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:text-blue-600 underline"
+              >
+                Get key
+              </a>
+            </p>
           </div>
         )}
 
