@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Save, Shield, UserCircle2, Trash2 } from "lucide-react";
+import { Loader2, Save, Shield, UserCircle2, Trash2, ExternalLink } from "lucide-react";
 import { checkBackend } from "@/lib/rag";
 import { deleteCurrentAccount } from "@/lib/api";
 import {
@@ -384,17 +384,18 @@ export default function Profile() {
             <p className="text-xs text-muted-foreground">
               Your key is stored in browser local storage and sent in request headers only when local mode is disabled.
             </p>
-            <p className="text-xs">
-              Don't have one?{" "}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Don't have one?</span>
               <a
                 href="https://openrouter.ai/workspaces/default/keys"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-500 hover:text-blue-600 underline"
+                className="inline-flex items-center gap-2 px-2 py-1 rounded-md text-sm font-medium text-primary hover:bg-primary/5"
               >
-                Get key
+                <ExternalLink className="h-4 w-4" />
+                Get a key
               </a>
-            </p>
+            </div>
           </div>
         )}
 
