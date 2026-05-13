@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Brain, FileText, MessageSquare, Sparkles, Layers, LogOut, Menu, Moon, Sun, UserCircle2, LayoutDashboard } from "lucide-react";
+import { Brain, FileText, MessageSquare, Sparkles, Layers, LogOut, Menu, Moon, Sun, UserCircle2, LayoutDashboard, Github, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 import { getStoredAiMode, getStoredApiKey, type AiMode } from "@/lib/ollama";
 import { checkBackend } from "@/lib/rag";
+
+const githubUrl = "https://github.com/c-varshith/studymind";
 
 const nav = [
   { to: "/app", label: "Notes", icon: FileText, end: true },
@@ -191,6 +193,22 @@ export default function AppShell() {
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
+          <div className="mt-3 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/40 p-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/70">Local models</p>
+            <p className="mt-1 text-sm text-sidebar-foreground/80">
+              Follow the GitHub repo for Ollama setup, ngrok instructions, and AI endpoint configuration.
+            </p>
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-sidebar-primary px-3 py-2 text-sm font-medium text-sidebar-primary-foreground transition-colors hover:opacity-90"
+            >
+              <Github className="h-4 w-4" />
+              Open GitHub repo
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </div>
         </div>
       </aside>
 

@@ -1,7 +1,9 @@
 import { Link } from "react-router-dom";
-import { Brain, MessageSquare, FileText, Sparkles, Volume2, ArrowRight } from "lucide-react";
+import { Brain, MessageSquare, FileText, Sparkles, Volume2, ArrowRight, Github, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+
+const githubUrl = "https://github.com/c-varshith/studymind";
 
 const features = [
   { icon: FileText, title: "Smart Notes", desc: "Write, paste, or dictate notes — your study material in one place." },
@@ -79,8 +81,24 @@ export default function Landing() {
         </section>
       </main>
 
-      <footer className="container py-10 text-center text-sm text-muted-foreground">
-        Team Vortex
+      <footer className="container py-10">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-border/70 bg-card/80 px-5 py-4 shadow-soft backdrop-blur sm:px-6 sm:py-5">
+          <div className="flex flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Team Vortex</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Read the GitHub repo for local model setup, Ollama guidance, and configuration tips.
+              </p>
+            </div>
+            <Button asChild variant="outline" className="shrink-0 rounded-full border-border/70 bg-background/70">
+              <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+                <Github className="mr-2 h-4 w-4" />
+                GitHub repo
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
       </footer>
     </div>
   );

@@ -1,14 +1,39 @@
-# StudyMind — AI-Powered Study Assistant
+<p align="center">
+   <img src="https://img.shields.io/badge/StudyMind-AI%20study%20assistant-FF6B35?style=for-the-badge&logo=github&logoColor=white&labelColor=111827" alt="StudyMind" />
+</p>
 
-StudyMind is a full-stack RAG (Retrieval-Augmented Generation) application that lets you upload PDFs, chat with your notes, generate quizzes and flashcards, and get AI-powered summaries.
+<p align="center">
+   <strong>
+      Study smarter with notes, quizzes, flashcards, and configurable AI models.
+   </strong><br/>
+   API key mode is the default. Switch to local Ollama mode when you want to run your own model locally.
+</p>
 
-By default, StudyMind uses **local models via Ollama**. Users can now also switch to an **API key mode** from the Profile page and connect to an external AI endpoint.
+<p align="center">
+   <a href="https://studymind-henna.vercel.app"><img src="https://img.shields.io/badge/Live%20Demo-Open%20app-0EA5E9?style=for-the-badge&logo=vercel&logoColor=white" alt="Live demo" /></a>
+   <a href="https://github.com/c-varshith/studymind"><img src="https://img.shields.io/badge/GitHub-Source%20repo-111827?style=for-the-badge&logo=github&logoColor=white" alt="Source repo" /></a>
+   <a href="#ai-connection-modes"><img src="https://img.shields.io/badge/AI%20Modes-API%20key%20%2B%20Local-FF6B35?style=for-the-badge&labelColor=111827" alt="AI modes" /></a>
+</p>
 
-**Live Demo:** https://studymind-henna.vercel.app
+<p align="center">
+   <a href="#features">Features</a> &bull;
+   <a href="#ai-connection-modes">AI modes</a> &bull;
+   <a href="#running-locally">Setup</a> &bull;
+   <a href="#tech-stack">Stack</a>
+</p>
+
+> **Default:** API key mode. Use local Ollama only when you want to self-host the model endpoint.
+
+| At a glance | Value |
+|---|---|
+| Live demo | https://studymind-henna.vercel.app |
+| Default AI mode | API key mode |
+| Optional local mode | Ollama via local dev or ngrok tunnel |
+| Backend | FastAPI + Python |
 
 ---
 
-## ✨ Features
+## Features
 
 - 📄 **PDF Upload & Embedding** — Upload notes and have them chunked + embedded into a vector database
 - 💬 **RAG Chat + Tutor History** — Ask questions about your uploaded notes with context-aware answers and reopen saved tutor conversations
@@ -21,7 +46,7 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────┐        ┌──────────────────────┐
@@ -43,14 +68,14 @@ By default, StudyMind uses **local models via Ollama**. Users can now also switc
 
 StudyMind supports two AI modes from **Profile -> AI Endpoint**:
 
-- **Local model mode (default):** uses Ollama on your own machine (directly in local dev, or through a tunnel for hosted frontend/backend).
-- **API key mode:** disable local mode, enter an endpoint URL and API key, then save. The app sends the key only in API key mode.
+- **API key mode (default):** enter an endpoint URL and API key, then save. The app sends the key only in API key mode.
+- **Local model mode:** enable local mode to use Ollama on your own machine, either directly in local dev or through a tunnel for hosted frontend/backend.
 
 Use **Test connection** in the same Profile section to verify your current settings before using chat, quiz, flashcards, summaries, or PDF embedding.
 
 > ⚠️ If local mode is enabled and your Ollama/tunnel is down, AI features will fail.
 
-### Local Mode Setup (Recommended)
+### Local Mode Setup (Optional)
 
 #### Step 1 — Run Ollama locally
 
@@ -72,7 +97,7 @@ The backend on Render can't reach `localhost` directly, so ngrok gives it a publ
    ngrok http 11434 --host-header="localhost:11434"
    ```
 3. Copy the `https://xxxx-xxxx.ngrok-free.dev` URL from the terminal output.
-4. Open https://studymind-henna.vercel.app, go to **Profile -> AI Endpoint**, keep **Use local model** enabled, and paste the ngrok URL.
+4. Open https://studymind-henna.vercel.app, go to **Profile -> AI Endpoint**, turn on **Use local model**, and paste the ngrok URL.
 
 > **Free ngrok URLs are ephemeral.** They change every time ngrok restarts. Each user should update their own URL in **Profile -> AI Endpoint** when it changes.
 
@@ -135,20 +160,20 @@ You can replace the example model IDs with models available in your provider acc
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React, Vite, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | FastAPI, Python 3.12 |
 | Database | Supabase (PostgreSQL + pgvector) |
-| AI Models | Local Ollama (llama3.1, nomic-embed-text) or API-key-based endpoint |
+| AI Models | API key-based endpoint by default, with optional local Ollama support (llama3.1, nomic-embed-text) |
 | Hosting | Vercel (frontend), Render (backend) |
 | Tunnel | ngrok (exposes local Ollama to Render) |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 studymind/
@@ -183,7 +208,7 @@ studymind/
 
 ---
 
-## 🚀 Running Locally (Development)
+## Running Locally
 
 ### Prerequisites
 
