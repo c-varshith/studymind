@@ -12,6 +12,7 @@
 <p align="center">
    <a href="https://studymind-henna.vercel.app"><img src="https://img.shields.io/badge/Live%20Demo-Open%20app-0EA5E9?style=for-the-badge&logo=vercel&logoColor=white" alt="Live demo" /></a>
    <a href="https://github.com/c-varshith/studymind"><img src="https://img.shields.io/badge/GitHub-Source%20repo-111827?style=for-the-badge&logo=github&logoColor=white" alt="Source repo" /></a>
+   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-111827?style=for-the-badge" alt="MIT license" /></a>
    <a href="#ai-connection-modes"><img src="https://img.shields.io/badge/AI%20Modes-API%20key%20%2B%20Local-FF6B35?style=for-the-badge&labelColor=111827" alt="AI modes" /></a>
 </p>
 
