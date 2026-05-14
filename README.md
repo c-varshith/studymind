@@ -464,4 +464,4 @@ Fix:
 
 ## 📄 License
 
-MIT
+This project is licensed under the MIT License. See the full text in [LICENSE](./LICENSE).
