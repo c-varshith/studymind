@@ -23,7 +23,7 @@
    <a href="#tech-stack">Stack</a>
 </p>
 
-> **Default:** API key mode. Use local Ollama only when you want to self-host the model endpoint.
+> **Default:** API key mode, use local Ollama only when you want to self-host the model endpoint.
 
 | At a glance | Value |
 |---|---|
